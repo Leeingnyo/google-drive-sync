@@ -1,0 +1,189 @@
+<html>
+<head>
+  <meta name="viewport" content="width=device-width">
+  <meta charset="utf-8">
+</head>
+
+<body>
+  <h1>Home Grocery Management</h1>
+  <div>
+    <p id="error-message"></p>
+  </div>
+  <div>
+    <button id="authorize-button">Login to Google</button>
+    <button id="revoke-button" style="display: none;">Logout</button>
+    <span id="username"></span>
+    <span id="rest-time"></span>
+  </div>
+
+<!-- scripts -->
+<script src="https://accounts.google.com/gsi/client"></script>
+<script src="https://apis.google.com/js/api.js"></script>
+<script id="google-api" src="./google-api.js"></script>
+<script id="config" src="./config.js"></script>
+
+<script id="google-oauth-code" src="./google-oauth.js">
+</script>
+<script id="google-oauth">
+const client = google.accounts.oauth2.initTokenClient({
+  client_id: clientId,
+  scope: ['auth/drive.appdata', 'auth/userinfo.email']
+    .map(scope => `https://www.googleapis.com/${scope}`)
+    .concat(['openid'])
+    .join(' '),
+  prompt: 'consent',
+  callback: handleLogin,
+});
+
+async function handleLogin(token) {
+  console.debug('handle login');
+  token.expires_at = +Date.now() + token.expires_in * 1000;
+  gapi.client.setToken(token);
+
+  localStorage.setItem('goauth', JSON.stringify(token));
+
+  afterLoggedIn();
+}
+
+const auth = false ?
+  () => {
+    client.requestAccessToken();
+  } : 
+  () => {
+    const hasRefreshToken = localStorage.getItem('goauth.refreshToken');
+    const prompt = hasRefreshToken ? 'none' : 'consent';
+    authorizeGoogle({ clientId, redirectUrl, prompt });
+  }
+</script>
+
+<script id="app">
+const INITIAL_STATE = {
+  isLoggedIn: false,
+};
+
+const state = {
+  ...INITIAL_STATE,
+};
+
+async function appReady() {
+  console.debug('app ready');
+
+  initializeApp();
+}
+
+const errorMessage = document.querySelector('#error-message');
+const authButton = document.querySelector('#authorize-button');
+const revokeButton = document.querySelector('#revoke-button');
+const username = document.querySelector('#username');
+const restTime = document.querySelector('#rest-time');
+
+async function initializeApp() {
+  console.debug('initialize app');
+  errorMessage.textContent = '';
+
+  // set authButton handler
+  authButton.onclick = () => {
+    errorMessage.textContent = '';
+
+    auth();
+  };
+
+  afterLoggedIn();
+}
+
+let restTimeTimeout;
+async function afterLoggedIn() {
+  console.debug('after logged in');
+
+  // check logged in
+  const oauth = JSON.parse(localStorage.getItem('goauth'));
+  if (oauth && oauth.expires_at >= Date.now()) {
+    // set token
+    gapi.client.setToken(oauth);
+  } else {
+    // require login
+    localStorage.removeItem('goauth');
+    errorMessage.textContent = 'access token is missing. should login first';
+    return;
+  }
+
+  // set logged in user info
+  const { result: userinfo } = await getUserInfo();
+  username.textContent =  `${userinfo.email}`;
+
+  // show revokeButton
+  revokeButton.style.display = '';
+  revokeButton.onclick = () => {
+    afterLoggedOut('logout');
+  };
+
+  // show when access token is expired
+  if (restTimeTimeout) {
+    clearInterval(restTimeTimeout);
+  }
+  restTimeTimeout = setInterval(updateRestTIme, 1000);
+  updateRestTIme();
+  function updateRestTIme() {
+    const token = gapi.client.getToken();
+    const restTimeInSeconds = Math.floor((token.expires_at - Date.now()) / 1000);
+
+    if (restTimeInSeconds > 0) {
+      restTime.textContent = `${restTimeInSeconds}s`;
+    } else {
+      afterLoggedOut('expired');
+      // expired
+      clearInterval(restTimeTimeout);
+
+      errorMessage.textContent = 'access token is expired. should login again';
+    }
+  }
+
+  // show files
+  restoreIndex();
+}
+
+async function afterLoggedOut(reason) {
+  console.debug('after logged out');
+  errorMessage.textContent = reason === 'logout' ? 'logged out' : reason === 'expired' ? 'expired' : 'unknown';
+  localStorage.removeItem('goauth');
+  if (reason === 'logout') {
+    localStorage.removeItem('goauth.refreshToken');
+  }
+
+  revokeButton.style.display = 'none';
+  username.textContent = '';
+  clearInterval(restTimeTimeout);
+  restTime.textContent = '';
+}
+
+async function restoreIndex() {
+  console.debug('restore index file');
+  const { result: { files } } = await getFiles();
+  const indexFile = files.find(({ name }) => name === 'index');
+
+  if (indexFile === undefined) {
+    console.debug('no index file');
+
+    const folderIdOptional = localStorage.getItem('folderId');
+    const folderId = folderIdOptional ? folderIdOptional : prompt('Insert folderId to store \'index\' file.\nex) https://drive.google.com/drive/u/0/folders/{folderId}');
+    localStorage.setItem('folderId', folderId);
+    console.debug('folderId:', folderId);
+
+    await createFile({
+      name: 'index',
+      folderId: folderId,
+      mimeType: 'application/json',
+      contents: JSON.stringify({}),
+    });
+    restoreIndex();
+    return;
+  }
+
+  const { result: index } = await readFile({ fileId: indexFile.id });
+  console.log(index);
+
+  // index
+}
+</script>
+</body>
+</html>

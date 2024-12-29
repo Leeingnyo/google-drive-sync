@@ -1,0 +1,68 @@
+<script id="config" src="./config.js"></script>
+<script id="secret" src="./secret.js"></script>
+<script>
+// parse result
+const result = [...new URLSearchParams(location.search)].reduce((result, [key, value]) => Object.assign(result, { [key]: value }), {});
+
+if (result.error) {
+  // error occured
+  if (result.error === 'interaction_required') {
+    window.opener.authorizeGoogle({
+      clientId,
+      redirectUrl,
+      prompt: 'select_account',
+    });
+  }
+} else {
+  // add listener to receive code verifier from its opener
+  function onMessage(e) {
+    if (e.origin !== location.origin) {
+      return;
+    }
+    const { type, codeVerifier } = e.data;
+    if (type !== 'code_verifier') {
+      return;
+    }
+
+    // request token with code verifier
+    requestToken({ codeVerifier })
+      .then(token => {
+        // save token
+        localStorage.setItem('goauth', JSON.stringify(token));
+        if (token.refresh_token) {
+          // save refresh token
+          localStorage.setItem('goauth.refreshToken', token.refresh_token);
+        }
+        // bye
+        window.close();
+      });
+    window.removeEventListener('message', onMessage);
+  }
+  window.addEventListener('message', onMessage);
+
+  // request code verifier
+  window.opener.postMessage({
+    type: 'request_code_verifier'
+  });
+}
+
+function requestToken({
+  codeVerifier,
+}) {
+  return fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'referer': undefined,
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: result.code,
+      client_id: clientId,
+      client_secret: clientSecret, // TODO: should be removed with PKCE
+      code_verifier: codeVerifier,
+      redirect_uri: redirectUrl,
+    }).toString()
+  }).then(r => r.json())
+}
+</script>
