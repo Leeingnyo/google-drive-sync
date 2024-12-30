@@ -1,4 +1,7 @@
 import {
+  getUserInfo,
+} from './google-api.js';
+import {
   GoogleDriveSync,
 } from './google-drive-sync.js';
 
@@ -34,32 +37,9 @@ window.addEventListener('UserLogout', () => {
   revokeButton.onclick = null;
 });
 
-async function restoreIndex() {
-  console.debug('restore index file');
-  const { result: { files } } = await getFiles();
-  const indexFile = files.find(({ name }) => name === 'index');
-
-  if (indexFile === undefined) {
-    console.debug('no index file');
-
-    const folderIdOptional = localStorage.getItem('folderId');
-    const folderId = folderIdOptional ? folderIdOptional : prompt('Insert folderId to store \'index\' file.\nex) https://drive.google.com/drive/u/0/folders/{folderId}');
-    localStorage.setItem('folderId', folderId);
-    console.debug('folderId:', folderId);
-
-    await createFile({
-      name: 'index',
-      folderId: folderId,
-      mimeType: 'application/json',
-      contents: JSON.stringify({}),
-    });
-    restoreIndex();
-    return;
-  }
-
-  const { result: index } = await readFile({ fileId: indexFile.id });
-  console.log(index);
-
-  // index
-}
+window.addEventListener('SyncReady', async () => {
+  username.textContent = '(loading...)';
+  const { result: userinfo } = await getUserInfo();
+  username.textContent = `${userinfo.email}`;
+});
 

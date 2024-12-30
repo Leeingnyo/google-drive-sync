@@ -1,5 +1,8 @@
 // gapi
 import {
+  getFiles,
+  createFile,
+  readFile,
 } from './google-api.js';
 import {
   authorizeGoogle,
@@ -86,16 +89,18 @@ export class GoogleDriveSync {
     this._initialized = true;
   }
 
-  async #prepareData() {
-    setTimeout(() => { window.dispatchEvent(new Event('SyncReady')); });
-  }
-
   #handleLogin(token) {
     token.expires_at = +Date.now() + token.expires_in * 1000;
     gapi.client.setToken(token);
     console.debug('access token acquired');
 
     this.#prepareData();
+  }
+
+  async #prepareData() {
+    await restoreIndex();
+    this._ready = true;
+    setTimeout(() => { window.dispatchEvent(new Event('SyncReady')); });
   }
 
   login() {
@@ -135,5 +140,34 @@ export class GoogleDriveSync {
     if (!this._initialized) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this._ready) { throw Error('GoogleDriveSyncNotReady'); }
   }
+}
+
+async function restoreIndex() {
+  console.debug('restore index file');
+  const { result: { files } } = await getFiles();
+  const indexFile = files.find(({ name }) => name === 'index');
+
+  if (indexFile === undefined) {
+    console.debug('no index file');
+
+    const folderIdOptional = localStorage.getItem('folderId');
+    const folderId = folderIdOptional ? folderIdOptional : prompt('Insert folderId to store \'index\' file.\nex) https://drive.google.com/drive/u/0/folders/{folderId}');
+    localStorage.setItem('folderId', folderId);
+    console.debug('folderId:', folderId);
+
+    await createFile({
+      name: 'index',
+      folderId: folderId,
+      mimeType: 'application/json',
+      contents: JSON.stringify({}),
+    });
+    restoreIndex();
+    return;
+  }
+
+  const { result: index } = await readFile({ fileId: indexFile.id });
+  console.log(index);
+
+  // index
 }
 

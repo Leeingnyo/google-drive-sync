@@ -1,3 +1,4 @@
+// authorization code flow
 let removeOnMessageRequestCodeVerifier;
 let removeOnMessageReceiveToken;
 export function authorizeGoogle({
