@@ -1,9 +1,12 @@
-let removeOnMessage;
-function authorizeGoogle({
+let removeOnMessageRequestCodeVerifier;
+let removeOnMessageReceiveToken;
+export function authorizeGoogle({
   clientId,
   redirectUrl,
   prompt = 'none',
   state = Math.random(),
+
+  onSuccess,
 }) {
   const codeVerifier = `${Math.random()}${Math.random()}${Math.random()}${Math.random()}${Math.random()}`;
   const codeChallenge = codeVerifier;
@@ -30,20 +33,7 @@ function authorizeGoogle({
 
   const popupWindow = window.open(url.href, 'oauth2', 'popup=true');
 
-  function onFocus() {
-    if (!popupWindow.closed) {
-      return;
-    }
-
-    const token = JSON.parse(localStorage.getItem('goauth'));
-    if (token) {
-      handleLogin(token);
-    }
-    window.removeEventListener('focus', onFocus);
-  };
-  window.addEventListener('focus', onFocus);
-
-  function onMessage(e) {
+  function onMessageRequestCodeVerifier(e) {
     if (e.origin !== location.origin) {
       return;
     }
@@ -53,22 +43,44 @@ function authorizeGoogle({
 
     popupWindow.postMessage({ type: 'code_verifier', codeVerifier });
 
-    window.removeEventListener('message', onMessage);
-    removeOnMessage = undefined;
+    window.removeEventListener('message', onMessageRequestCodeVerifier);
+    removeOnMessageRequestCodeVerifier = undefined;
   }
-  if (removeOnMessage) {
-    removeOnMessage();
+  if (removeOnMessageRequestCodeVerifier) {
+    removeOnMessageRequestCodeVerifier();
   }
-  window.addEventListener('message', onMessage);
-  removeOnMessage = () => {
-    window.removeEventListener('message', onMessage);
+  window.addEventListener('message', onMessageRequestCodeVerifier);
+  removeOnMessageRequestCodeVerifier = () => {
+    window.removeEventListener('message', onMessageRequestCodeVerifier);
+  };
+
+  function onMessageReceiveToken(e) {
+    if (e.origin !== location.origin) {
+      return;
+    }
+    const { type, token } = e.data;
+    if (type !== 'send_token_result') {
+      return;
+    }
+
+    onSuccess?.(token);
+
+    window.removeEventListener('message', onMessageReceiveToken);
+    removeOnMessageReceiveToken = undefined;
+  }
+  if (removeOnMessageReceiveToken) {
+    removeOnMessageReceiveToken();
+  }
+  window.addEventListener('message', onMessageReceiveToken);
+  removeOnMessageReceiveToken = () => {
+    window.removeEventListener('message', onMessageReceiveToken);
   };
 };
 
-function refreshToken({
+export function refreshToken({
   refreshToken,
 }) {
-  fetch('https://oauth2.googleapis.com/token', {
+  return fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -78,14 +90,9 @@ function refreshToken({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
       client_id: clientId,
-      client_secret: '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',
+      client_secret: clientSecret,
       redirect_uri: redirectUrl,
     }).toString()
   }).then(r => r.json())
-  .then(token => {
-    console.log(token);
-    localStorage.setItem('goauth', JSON.stringify(token));
-    // window.close();
-  });
 }
 

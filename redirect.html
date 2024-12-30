@@ -1,5 +1,5 @@
-<script id="config" src="./config.js"></script>
-<script id="secret" src="./secret.js"></script>
+<script src="./config.js"></script>
+<script src="./secret.js"></script>
 <script>
 // parse result
 const result = [...new URLSearchParams(location.search)].reduce((result, [key, value]) => Object.assign(result, { [key]: value }), {});
@@ -27,8 +27,10 @@ if (result.error) {
     // request token with code verifier
     requestToken({ codeVerifier })
       .then(token => {
-        // save token
-        localStorage.setItem('goauth', JSON.stringify(token));
+        window.opener.postMessage({
+          type: 'send_token_result',
+          token,
+        });
         if (token.refresh_token) {
           // save refresh token
           localStorage.setItem('goauth.refreshToken', token.refresh_token);
