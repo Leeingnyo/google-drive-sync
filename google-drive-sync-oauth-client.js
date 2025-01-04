@@ -9,6 +9,7 @@ export class GoogleDriveSyncOauthClient {
   #_google_ready;
   #_user_drive_ready;
   #_client;
+  #_timeout;
 
   constructor(config) {
     this.config = config;
@@ -87,6 +88,13 @@ export class GoogleDriveSyncOauthClient {
     console.debug('access token acquired');
 
     setTimeout(() => { window.dispatchEvent(new Event('SyncReady')); });
+
+    if (this.#_timeout) {
+      clearTimeout(this.#_timeout);
+    }
+    this.#_timeout = setTimeout(() => {
+      window.dispatchEvent(new Event('TokenExpired'));
+    }, token.expires_in * 1000);
 
     this.#_user_drive_ready = true;
   }
