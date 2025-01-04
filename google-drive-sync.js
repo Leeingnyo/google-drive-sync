@@ -44,11 +44,15 @@ interface GoogleDriveSyncConfig {
 export class GoogleDriveSync {
   // TODO: split into GoogleOauthClient / DriveSync
 
+  #_google_ready;
+  #_user_drive_ready;
+  #_client;
+
   constructor(config) {
     this.config = config;
 
-    this._google_ready = false;
-    this._user_drive_ready = false;
+    this.#_google_ready = false;
+    this.#_user_drive_ready = false;
   }
 
   #keytype(key) {
@@ -144,7 +148,7 @@ export class GoogleDriveSync {
 
     if (!this.config.useOffline) {
       console.debug('set token client');
-      this._client = google.accounts.oauth2.initTokenClient({
+      this.#_client = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: ['auth/drive.appdata', 'auth/userinfo.email']
           .map(scope => `https://www.googleapis.com/${scope}`)
@@ -155,7 +159,7 @@ export class GoogleDriveSync {
       });
     }
 
-    this._google_ready = true;
+    this.#_google_ready = true;
   }
 
   #handleLogin(token) {
@@ -165,14 +169,14 @@ export class GoogleDriveSync {
 
     setTimeout(() => { window.dispatchEvent(new Event('SyncReady')); });
 
-    this._user_drive_ready = true;
+    this.#_user_drive_ready = true;
   }
 
   /**
    * 로그인하기
    */
   login() {
-    if (!this._google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this.#_google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
 
     if (this.config.useOffline) {
       // authorization code flow with PKCE
@@ -181,7 +185,7 @@ export class GoogleDriveSync {
       authorizeGoogle({ clientId, redirectUrl, prompt, onSuccess: this.#handleLogin.bind(this) });
     } else {
       // implicit flow
-      this._client.requestAccessToken();
+      this.#_client.requestAccessToken();
     }
   }
 
@@ -189,7 +193,7 @@ export class GoogleDriveSync {
    * 로그아웃하기
    */
   logout() {
-    if (!this._google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this.#_google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
 
     gapi.client.setToken('');
     console.log('access token revoked');
@@ -198,17 +202,17 @@ export class GoogleDriveSync {
 
     setTimeout(() => { window.dispatchEvent(new Event('UserLogout')); });
 
-    this._user_drive_ready = false;
+    this.#_user_drive_ready = false;
   }
 
-  async loadRemote(localData) {
-    if (!this._google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
-    if (!this._ready) { throw Error('GoogleDriveSyncNotReady'); }
+  async loadRemote(key) {
+    if (!this.#_google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this.#_user_drive_ready) { throw Error('GoogleDriveSyncNotReady'); }
   }
 
-  async saveRemote(name, data) {
-    if (!this._google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
-    if (!this._ready) { throw Error('GoogleDriveSyncNotReady'); }
+  async saveRemote(key, value) {
+    if (!this.#_google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this.#_user_drive_ready) { throw Error('GoogleDriveSyncNotReady'); }
   }
 }
 
