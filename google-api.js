@@ -54,6 +54,14 @@ export function readFile({ fileId }) {
   return gapi.client.drive.files.get({ fileId, alt: 'media' })
 }
 
+export function getFileRevisions({ fileId, pageSize, pageToken }) {
+  return gapi.client.drive.revisions.list({ fileId, pageSize, pageToken });
+}
+
+export function getFileRevision({ fileId, revisionId, acknowledgeAbuse }) {
+  return gapi.client.drive.revisions.get({ fileId, revisions, acknowledgeAbuse });
+}
+
 export function updateFile({ fileId, mimeType = '*/*', contents }) {
   if (!fileId) {
      throw Error('\'fieldId\' is required');
