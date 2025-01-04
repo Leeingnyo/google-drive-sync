@@ -1,5 +1,6 @@
 import { GoogleDriveSyncInternalStorage } from './google-drive-sync-internal-storage.js';
 import { GoogleDriveSyncOauthClient } from './google-drive-sync-oauth-client.js';
+import { GoogleDriveSyncRemoteStorage } from './google-drive-sync-remote-storage.js';
 
 // polyfill for BigInt
 if (BigInt) {
@@ -34,12 +35,14 @@ interface GoogleDriveSyncConfig {
 export class GoogleDriveSync {
   #_oauth_client;
   #_internal_storage;
+  #_remote_storage;
 
   constructor(config) {
     this.config = config;
 
     this.#_oauth_client = new GoogleDriveSyncOauthClient(config);
     this.#_internal_storage = new GoogleDriveSyncInternalStorage();
+    this.#_remote_storage = new GoogleDriveSyncRemoteStorage(config);
   }
 
   load(key) {
