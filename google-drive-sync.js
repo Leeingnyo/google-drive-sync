@@ -41,63 +41,25 @@ export class GoogleDriveSync {
   #_google_ready;
   #_user_drive_ready;
   #_client;
+  #_internal_storage;
 
   constructor(config) {
     this.config = config;
 
     this.#_google_ready = false;
     this.#_user_drive_ready = false;
-  }
 
-  #keytype(key) {
-    return `GDS.${key}.type`;
-  }
-
-  #keydata(key) {
-    return `GDS.${key}.data`;
+    this.#_internal_storage = new GoogleDriveSyncInternalStorage();
   }
 
   load(key) {
-    const type = localStorage.getItem(this.#keytype(key));
-    if (type === null) {
-      return;
-    }
-
-    const data = localStorage.getItem(this.#keydata(key));
-    if (data === null) {
-      return;
-    }
-
-    if (type === 'undefined') {
-      return;
-    } else if (type === 'bigint') {
-      return BigInt(JSON.parse(data));
-    } else if (type === 'number') {
-      return JSON.parse(data);
-    } else if (type === 'string') {
-      return JSON.parse(data);
-    } else if (type === 'boolean') {
-      return JSON.parse(data);
-    } else if (type === 'object') {
-      return JSON.parse(data);
-    }
+    return this.#_internal_storage.load(key);
   }
-
   save(key, value) {
-    const type = typeof value;
-    if (type === 'symbol' || type === 'function') { // ignored
-      return;
-    }
-
-    localStorage.setItem(this.#keytype(key), type);
-    // type === 'bigint' // nested bigint is transformed into string
-    localStorage.setItem(this.#keydata(key), JSON.stringify(value));
-    return;
+    this.#_internal_storage.save(key, value);
   }
-
   remove(key) {
-    localStorage.removeItem(this.#keytype(key));
-    localStorage.removeItem(this.#keydata(key));
+    this.#_internal_storage.remove(key);
   }
 
   /**
@@ -207,6 +169,58 @@ export class GoogleDriveSync {
   async saveRemote(key, value) {
     if (!this.#_google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_user_drive_ready) { throw Error('GoogleDriveSyncNotReady'); }
+  }
+}
+
+class GoogleDriveSyncInternalStorage {
+  #keytype(key) {
+    return `GDS.${key}.type`;
+  }
+
+  #keydata(key) {
+    return `GDS.${key}.data`;
+  }
+
+  load(key) {
+    const type = localStorage.getItem(this.#keytype(key));
+    if (type === null) {
+      return;
+    }
+
+    const data = localStorage.getItem(this.#keydata(key));
+    if (data === null) {
+      return;
+    }
+
+    if (type === 'undefined') {
+      return;
+    } else if (type === 'bigint') {
+      return BigInt(JSON.parse(data));
+    } else if (type === 'number') {
+      return JSON.parse(data);
+    } else if (type === 'string') {
+      return JSON.parse(data);
+    } else if (type === 'boolean') {
+      return JSON.parse(data);
+    } else if (type === 'object') {
+      return JSON.parse(data);
+    }
+  }
+
+  save(key, value) {
+    const type = typeof value;
+    if (type === 'symbol' || type === 'function') { // ignored
+      return;
+    }
+
+    localStorage.setItem(this.#keytype(key), type);
+    // type === 'bigint' // nested bigint is transformed into string
+    localStorage.setItem(this.#keydata(key), JSON.stringify(value));
+  }
+
+  remove(key) {
+    localStorage.removeItem(this.#keytype(key));
+    localStorage.removeItem(this.#keydata(key));
   }
 }
 
