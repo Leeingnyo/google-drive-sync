@@ -23,21 +23,33 @@ interface GoogleDriveSyncConfig {
 */
 
 /**
+ * basic methods
+ * - 데이터 저장하기, 불러오기
+ *
+ * google methods
+ * - 구동하기
+ * - 로그인하기, 로그아웃하기
+ * - 데이터 저장하고 싱크하기, 데이터 싱크해서 불러오기
+ *
  * events
- * - SyncReady
+ * - SyncReady (UserLogin)
  * - UserLogout
  * - TokenExpired
  */
 export class GoogleDriveSync {
+  // TODO: split into GoogleOauthClient / DriveSync
 
   constructor(config) {
     this.config = config;
 
-    this._initialized = false;
-    this._ready = false;
+    this._google_ready = false;
+    this._user_drive_ready = false;
   }
 
-  async init() {
+  /**
+   * 시작하기
+   */
+  async initGoogleLibrary() {
     console.debug('initialize google api client');
     await new Promise((resolve, reject) => {
       async function initializeGoogleApiClient() {
@@ -57,6 +69,7 @@ export class GoogleDriveSync {
     });
     console.debug('google api client initialized');
 
+    // get access token with refresh token
     if (this.config.useOffline) {
       if (this.config.saveRefreshToken) {
         console.debug('try to get access token');
@@ -86,7 +99,7 @@ export class GoogleDriveSync {
       });
     }
 
-    this._initialized = true;
+    this._google_ready = true;
   }
 
   #handleLogin(token) {
@@ -94,17 +107,16 @@ export class GoogleDriveSync {
     gapi.client.setToken(token);
     console.debug('access token acquired');
 
-    this.#prepareData();
-  }
-
-  async #prepareData() {
-    await restoreIndex();
-    this._ready = true;
     setTimeout(() => { window.dispatchEvent(new Event('SyncReady')); });
+
+    this._user_drive_ready = true;
   }
 
+  /**
+   * 로그인하기
+   */
   login() {
-    if (!this._initialized) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this._google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
 
     if (this.config.useOffline) {
       // authorization code flow with PKCE
@@ -117,27 +129,29 @@ export class GoogleDriveSync {
     }
   }
 
+  /**
+   * 로그아웃하기
+   */
   logout() {
+    if (!this._google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
+
     gapi.client.setToken('');
     console.log('access token revoked');
     localStorage.removeItem(GOAUTH_REFRESH_TOKEN_KEY);
     console.log('refresh token revoked');
 
     setTimeout(() => { window.dispatchEvent(new Event('UserLogout')); });
+
+    this._user_drive_ready = false;
   }
 
-  async load() {
-    if (!this._initialized) { throw Error('GoogleDriveSyncNotInitialized'); }
+  async loadRemote(localData) {
+    if (!this._google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this._ready) { throw Error('GoogleDriveSyncNotReady'); }
   }
 
-  async update(name, data) {
-    if (!this._initialized) { throw Error('GoogleDriveSyncNotInitialized'); }
-    if (!this._ready) { throw Error('GoogleDriveSyncNotReady'); }
-  }
-
-  async sync() {
-    if (!this._initialized) { throw Error('GoogleDriveSyncNotInitialized'); }
+  async saveRemote(name, data) {
+    if (!this._google_ready) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this._ready) { throw Error('GoogleDriveSyncNotReady'); }
   }
 }

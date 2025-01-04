@@ -20,7 +20,7 @@ const googleDriveSync = new GoogleDriveSync({
   ignoreConflict: true,
 });
 
-googleDriveSync.init();
+googleDriveSync.initGoogleLibrary();
 
 authButton.addEventListener('click', () => {
   googleDriveSync.login();
