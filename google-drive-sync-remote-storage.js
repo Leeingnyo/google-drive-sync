@@ -119,7 +119,7 @@ export class GoogleDriveSyncRemoteStorage {
     const stringValue = JSON.stringify(value);
     const hash = await digestMessage(stringValue);
     const indexFileContent = await this.#readIndexFile();
-    if (indexFileContent[key].hash === hash) {
+    if (indexFileContent[key]?.hash === hash) {
       console.debug(key, 'not changed');
       return;
     }
@@ -141,7 +141,7 @@ export class GoogleDriveSyncRemoteStorage {
   async #readData(key) {
     const fileId = await (async () => {
       const indexFileContent = await this.#readIndexFile();
-      const fileIdInIndex = indexFileContent[key].fileId;
+      const fileIdInIndex = indexFileContent[key]?.fileId;
       if (fileIdInIndex) {
         return fileIdInIndex;
       }
@@ -166,7 +166,7 @@ export class GoogleDriveSyncRemoteStorage {
 
     const fileId = await (async () => {
       const indexFileContent = await this.#readIndexFile();
-      const fileIdInIndex = indexFileContent[key].fileId;
+      const fileIdInIndex = indexFileContent[key]?.fileId;
       if (fileIdInIndex) {
         return fileIdInIndex;
       }
