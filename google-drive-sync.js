@@ -51,6 +51,10 @@ export class GoogleDriveSync {
     return this.#_internal_storage.load(key);
   }
   save(key, value) {
+    const previousValue = this.load(key);
+    if (isEqual(previousValue, value)) {
+      return;
+    }
     this.#dirty.push(key);
     this.#_internal_storage.save(key, value);
   }
