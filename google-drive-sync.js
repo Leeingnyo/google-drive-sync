@@ -71,12 +71,12 @@ export class GoogleDriveSync {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
-    // remote load
-    const remoteData = await this.#_remote_storage.load(key);
-    console.log('remote data', remoteData);
     // internal load
     const internalData = this.#_internal_storage.load(key);
     console.log('internal data', internalData);
+    // remote load
+    const remoteData = await this.#_remote_storage.load(key, internalData);
+    console.log('remote data', remoteData);
     // compare
     // if diff
       // selfMerge -> return remote load

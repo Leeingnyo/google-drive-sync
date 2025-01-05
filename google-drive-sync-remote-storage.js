@@ -73,36 +73,37 @@ export class GoogleDriveSyncRemoteStorage {
   }
   */
 
-  async load(key) {
+  async load(key, internalData) {
+    console.debug('load remote', key);
     // TODO: caching
     // const indexFileId = await this.#getIndexFileId();
     // 안 바뀌었으면
     // TODO: caching
-    /*
-    const [modified, lastModified] = await isIndexFileModified(indexFileId, this.#lastModified);
-    if (!modified) {
-      // 캐시 데이터 리턴
-      const cachedData = this.#getRemoteData();
-      return cachedData[key];
+    const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false); // 새로 가져옴
+    const modifiedTime = +new Date(modifiedTimeString);
+    const isModified = this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
+
+    if (!isModified) {
+      console.debug('not modified, return internalData');
+      return internalData;
     }
-    */
 
-    // TODO: caching
     // save last modified
-    /*
-    this.#lastModified = lastModified;
-    localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(lastModified));
-    */
+    this.#modifiedTime = modifiedTime;
+    localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(modifiedTime));
 
-    // TODO: caching
-    // const indexFileContent = await readIndexFile(indexFileId);
+    // index 해시 같은 값이면 fetch 안 함
+    const stringValue = JSON.stringify(internalData);
+    const hash = await digestMessage(stringValue);
+    const indexFileContent = await this.#readIndexFile();
+    if (indexFileContent[key]?.hash === hash) {
+      console.debug(key, 'same');
+      return internalData;
+    }
+    console.debug(key, 'not same');
 
     // 파일 데이터 읽음
     return this.#readData(key);
-
-    
-    // 캐시 데이터에 반영
-    // 리턴
   }
 
   async save(key, value) {
