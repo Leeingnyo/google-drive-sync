@@ -182,8 +182,9 @@ export class GoogleDriveSyncRemoteStorage {
       const { result } = await updateFile({ fileId, mimeType: 'text/plain', contents: stringValue });
       return result;
     } else {
+      const { parents } = await this.#getIndexFileInfo();
       console.debug('[API] create file:', key);
-      const { result } = await createFile({ name: this.#getRemoteFileName(key), mimeType: 'text/plain', contents: stringValue });
+      const { result } = await createFile({ name: this.#getRemoteFileName(key), mimeType: 'text/plain', contents: stringValue, folderId: parents[0] });
       return result;
     }
   }
@@ -191,7 +192,7 @@ export class GoogleDriveSyncRemoteStorage {
 
 async function getIndexFileInfo() {
   console.debug('[API] get index file info');
-  const { result: { files } } = await getFiles({ q: 'name = \'index\'', fields: `files(${['id', 'name', 'mimeType', 'modifiedTime', 'headRevisionId'].join(', ')})` });
+  const { result: { files } } = await getFiles({ q: 'name = \'index\'', fields: `files(${['id', 'name', 'mimeType', 'modifiedTime', 'headRevisionId', 'parents'].join(', ')})` });
   const indexFile = files.find(({ name }) => name === 'index');
 
   if (indexFile === undefined) {
