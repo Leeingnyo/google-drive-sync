@@ -46,13 +46,14 @@ export class GoogleDriveSyncRemoteStorage {
     return this.#indexFileContent = indexFileContent;
   }
 
-  async #updateIndexFile(key, value, stringValue_, hash_) {
+  async #updateIndexFile(key, value, fileId, stringValue_, hash_) {
     const { id } = await this.#getIndexFileInfo();
     const stringValue = stringValue_ ?? JSON.stringify(value);
     const hash = hash_ ?? await digestMessage(stringValue);
     const indexFileContent = await this.#readIndexFile(false);
     indexFileContent[key] = {
       ...indexFileContent[key],
+      fileId,
       hash,
     };
 
@@ -124,19 +125,17 @@ export class GoogleDriveSyncRemoteStorage {
     }
     console.debug(key, 'changed');
 
-    await Promise.all([
-      // 파일 업데이트
-      this.#updateData(key, value),
-      // index 파일 업데이트
-      Promise.resolve().then(async () => {
-        await this.#updateIndexFile(key, value, stringValue, hash);
-        const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false);
-        const modifiedTime = +new Date(modifiedTimeString);
+    // 파일 업데이트
+    const { id: fileId } = await this.#updateData(key, value, stringValue);
+    // index 파일 업데이트
+    {
+      await this.#updateIndexFile(key, value, fileId, stringValue, hash);
+      const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false);
+      const modifiedTime = +new Date(modifiedTimeString);
 
-        this.#modifiedTime = modifiedTime;
-        localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(modifiedTime));
-      })
-    ]);
+      this.#modifiedTime = modifiedTime;
+      localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(modifiedTime));
+    }
   }
 
   async #readData(key) {
@@ -154,8 +153,8 @@ export class GoogleDriveSyncRemoteStorage {
     }
   }
 
-  async #updateData(key, value) {
-    const stringValue = JSON.stringify(value);
+  async #updateData(key, value, stringValue_) {
+    const stringValue = stringValue_ ?? JSON.stringify(value);
 
     // TODO: caching
     console.debug('[API] get file:', key);
@@ -164,10 +163,12 @@ export class GoogleDriveSyncRemoteStorage {
 
     if (targetFile) {
       console.debug('[API] update file:', key);
-      await updateFile({ fileId: targetFile.id, mimeType: 'text/plain', contents: stringValue });
+      const { result } = await updateFile({ fileId: targetFile.id, mimeType: 'text/plain', contents: stringValue });
+      return result;
     } else {
       console.debug('[API] create file:', key);
-      await createFile({ name: this.#getRemoteFileName(key), mimeType: 'text/plain', contents: stringValue });
+      const { result } = await createFile({ name: this.#getRemoteFileName(key), mimeType: 'text/plain', contents: stringValue });
+      return result;
     }
   }
 }
