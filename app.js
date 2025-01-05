@@ -35,6 +35,7 @@ window.addEventListener('SyncReady', () => {
 window.addEventListener('UserLogout', () => {
   revokeButton.style.display = 'none';
   revokeButton.onclick = null;
+  username.textContent = '';
 });
 
 window.addEventListener('SyncReady', async () => {

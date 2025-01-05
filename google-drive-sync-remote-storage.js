@@ -201,11 +201,8 @@ async function getIndexFileInfo() {
   return indexFile;
 
   async function createIndexFile() {
-    console.log('[API] create index file');
-    const folderIdOptional = localStorage.getItem('folderId');
-    const folderId = folderIdOptional ? folderIdOptional :
-      prompt('Insert folderId to store \'index\' file.\nex) https://drive.google.com/drive/u/0/folders/{folderId}');
-    localStorage.setItem('folderId', folderId);
+    console.debug('[API] create index file');
+    const folderId = prompt('Insert folderId to store \'index\' file.\nex) https://drive.google.com/drive/u/0/folders/{folderId}');
     console.debug('folderId:', folderId);
 
     await createFile({
