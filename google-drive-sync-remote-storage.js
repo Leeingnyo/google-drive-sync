@@ -138,19 +138,21 @@ export class GoogleDriveSyncRemoteStorage {
     }
   }
 
-  async #readData(key) {
-    const fileId = await (async () => {
-      const indexFileContent = await this.#readIndexFile();
-      const fileIdInIndex = indexFileContent[key]?.fileId;
-      if (fileIdInIndex) {
-        return fileIdInIndex;
-      }
+  async #getFileId(key) {
+    const indexFileContent = await this.#readIndexFile();
+    const fileIdInIndex = indexFileContent[key]?.fileId;
+    if (fileIdInIndex) {
+      return fileIdInIndex;
+    }
 
-      console.debug('[API] get file:', key);
-      const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
-      const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
-      return targetFile?.id;
-    })();
+    console.debug('[API] get file:', key);
+    const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
+    const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
+    return targetFile?.id;
+  }
+
+  async #readData(key) {
+    const fileId = await this.#getFileId(key);
     
     if (fileId) {
       console.debug('[API] read file:', key);
@@ -164,18 +166,7 @@ export class GoogleDriveSyncRemoteStorage {
   async #updateData(key, value, stringValue_) {
     const stringValue = stringValue_ ?? JSON.stringify(value);
 
-    const fileId = await (async () => {
-      const indexFileContent = await this.#readIndexFile();
-      const fileIdInIndex = indexFileContent[key]?.fileId;
-      if (fileIdInIndex) {
-        return fileIdInIndex;
-      }
-
-      console.debug('[API] get file:', key);
-      const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
-      const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
-      return targetFile?.id;
-    })();
+    const fileId = await this.#getFileId(key);
 
     if (fileId) {
       console.debug('[API] update file:', key);
