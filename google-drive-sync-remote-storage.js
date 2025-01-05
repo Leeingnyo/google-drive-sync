@@ -7,20 +7,20 @@ import { // gapi
   updateFile,
 } from './google-api.js';
 
-const LAST_MODIFIED_KEY = 'GDS.lastModified';
+const MODIFIED_TIME_KEY = 'GDS.modifiedTime';
 
 export class GoogleDriveSyncRemoteStorage {
   #config;
 
   #indexFileInfo;
+  #modifiedTime;
 
   // #remoteData;
 
   constructor(config) {
     this.#config = config;
 
-    // TODO: caching
-    // this.#lastModified = JSON.parse(localStorage.getItem(LAST_MODIFIED_KEY));
+    this.#modifiedTime = JSON.parse(localStorage.getItem(MODIFIED_TIME_KEY));
   }
 
   #getRemoteFileName(key) {
@@ -64,7 +64,7 @@ export class GoogleDriveSyncRemoteStorage {
     // save last modified
     /*
     this.#lastModified = lastModified;
-    localStorage.setItem(LAST_MODIFIED_KEY, JSON.stringify(lastModified));
+    localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(lastModified));
     */
 
     // TODO: caching
@@ -79,9 +79,10 @@ export class GoogleDriveSyncRemoteStorage {
   }
 
   async save(key, value) {
-    const { id } = await this.#getIndexFileInfo();
-    // TODO: 바뀌었는지 체크 필요함
-    // const [modified, lastModified] = await isIndexFileModified(indexFileId, this.#lastModified);
+    console.debug('save remote', key, value);
+    const { id, modifiedTime: modifiedTimeString } = await getIndexFileInfo();
+    const modifiedTime = +new Date(modifiedTimeString);
+    const isModified = this.#modifiedTime < modifiedTime;
 
     // TODO: 캐시 데이터에 반영
     // const cachedData = this.#getRemoteData();
@@ -94,17 +95,17 @@ export class GoogleDriveSyncRemoteStorage {
       // index 파일 업데이트
       Promise.resolve().then(async () => {
         await updateIndexFile(id, key, value);
+        const { modifiedTime: modifiedTimeString } = await getIndexFileInfo();
+        const modifiedTime = +new Date(modifiedTimeString);
 
-        // const [, lastModified] = await isIndexFileModified(indexFileId);
-        // TODO: 갱신 (필요함?)
-        // this.#lastModified = lastModified;
-        // localStorage.setItem(LAST_MODIFIED_KEY, JSON.stringify(lastModified));
+        this.#modifiedTime = modifiedTime;
+        localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(modifiedTime));
       })
     ]);
   }
 
   async #readData(key) {
-    const { result: { files: files } } = await getFiles(); // TODO: cache 필요
+    const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
     const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
     
     if (targetFile) {
@@ -118,7 +119,7 @@ export class GoogleDriveSyncRemoteStorage {
   async #updateData(key, value) {
     const stringValue = JSON.stringify(value);
 
-    const { result: { files: files } } = await getFiles(); // TODO: cache 필요
+    const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
     const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
 
     if (targetFile) {
@@ -127,19 +128,6 @@ export class GoogleDriveSyncRemoteStorage {
       await createFile({ name: this.#getRemoteFileName(key), mimeType: 'text/plain', contents: stringValue });
     }
   }
-}
-
-async function isIndexFileModified(indexFileId, lastModified = Number.MIN_SAFE_INTEGER) {
-  console.debug('check index file modified');
-  const { result: indexFileRevisions } = await getFileRevisions({ fileId: indexFileId });
-  const latestRevision = indexFileRevisions.revisions.at(-1); // TODO: check if this is latest
-  const modified = +new Date(latestRevision.modifiedTime);
-  if (lastModified < modified) {
-    console.debug('index file is modified');
-    return [true, modified];
-  }
-  console.debug('index file is not modified');
-  return [false, modified];
 }
 
 async function getIndexFileInfo() {
