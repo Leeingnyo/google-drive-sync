@@ -37,6 +37,8 @@ export class GoogleDriveSync {
   #_internal_storage;
   #_remote_storage;
 
+  #dirty = [];
+
   constructor(config) {
     this.config = config;
 
@@ -49,6 +51,7 @@ export class GoogleDriveSync {
     return this.#_internal_storage.load(key);
   }
   save(key, value) {
+    this.#dirty.push(key);
     this.#_internal_storage.save(key, value);
   }
   remove(key) {
@@ -93,6 +96,19 @@ export class GoogleDriveSync {
 
     this.#_internal_storage.save(key, value);
     return await this.#_remote_storage.save([{ key, value }]);
+  }
+
+  async syncRemote() {
+    if (this.#dirty.length === 0) {
+      return;
+    }
+
+    const entries = this.#dirty.map((key) => ({
+      key,
+      value: this.#_internal_storage.load(key),
+    }));
+    await this.#_remote_storage.save(entries);
+    this.#dirty = [];
   }
 }
 
