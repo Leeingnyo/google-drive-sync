@@ -46,11 +46,11 @@ export class GoogleDriveSyncRemoteStorage {
     return this.#indexFileContent = indexFileContent;
   }
 
-  async #updateIndexFile(key, value) {
+  async #updateIndexFile(key, value, stringValue_, hash_) {
     const { id } = await this.#getIndexFileInfo();
-    const stringValue = JSON.stringify(value);
-    const hash = await digestMessage(stringValue);
-    const indexFileContent = await this.#readIndexFile();
+    const stringValue = stringValue_ ?? JSON.stringify(value);
+    const hash = hash_ ?? await digestMessage(stringValue);
+    const indexFileContent = await this.#readIndexFile(false);
     indexFileContent[key] = hash;
 
     this.#indexFileContent = indexFileContent;
@@ -111,14 +111,22 @@ export class GoogleDriveSyncRemoteStorage {
     // const cachedData = this.#getRemoteData();
     // cachedData[key] = value;
 
-    // TODO: index 해시 같은 값이면 업데이트 안 함
+    // index 해시 같은 값이면 업데이트 안 함
+    const stringValue = JSON.stringify(value);
+    const hash = await digestMessage(stringValue);
+    const indexFileContent = await this.#readIndexFile();
+    if (indexFileContent[key] === hash) {
+      console.debug(key, 'not changed');
+      return;
+    }
+    console.debug(key, 'changed');
 
     await Promise.all([
       // 파일 업데이트
       this.#updateData(key, value),
       // index 파일 업데이트
       Promise.resolve().then(async () => {
-        await this.#updateIndexFile(key, value);
+        await this.#updateIndexFile(key, value, stringValue, hash);
         const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false);
         const modifiedTime = +new Date(modifiedTimeString);
 
