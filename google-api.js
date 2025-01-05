@@ -2,8 +2,8 @@ export function getUserInfo() {
   return gapi.client.oauth2.userinfo.v2.me.get();
 }
 
-export function getFiles() {
-  return gapi.client.drive.files.list();
+export function getFiles({ q, fields } = {}) {
+  return gapi.client.drive.files.list({ q, fields });
 }
 
 export function createDirectory({ name, folderId }) {
@@ -46,8 +46,8 @@ export async function createFile2({ name, folderId, mimeType, contents }) {
   
 }
 
-export function getFile({ fileId }) {
-  return gapi.client.drive.files.get({ fileId });
+export function getFile({ fileId, fields }) {
+  return gapi.client.drive.files.get({ fileId, fiedls });
 }
 
 export function readFile({ fileId }) {

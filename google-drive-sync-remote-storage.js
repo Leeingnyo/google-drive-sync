@@ -12,8 +12,7 @@ const LAST_MODIFIED_KEY = 'GDS.lastModified';
 export class GoogleDriveSyncRemoteStorage {
   #config;
 
-  #indexFileId;
-  // #lastModified;
+  #indexFileInfo;
 
   // #remoteData;
 
@@ -28,11 +27,12 @@ export class GoogleDriveSyncRemoteStorage {
     return `${key}.data`;
   }
 
-  async #getIndexFileId() {
-    if (this.#indexFileId) {
-      return this.#indexFileId;
+  async #getIndexFileInfo() {
+    if (this.#indexFileInfo) {
+      return this.#indexFileInfo;
     } else {
-      return await readIndexFileId();
+      this.#indexFileInfo = await getIndexFileInfo();
+      return this.#indexFileInfo;
     }
   }
 
@@ -79,7 +79,7 @@ export class GoogleDriveSyncRemoteStorage {
   }
 
   async save(key, value) {
-    const indexFileId = await this.#getIndexFileId();
+    const { id } = await this.#getIndexFileInfo();
     // TODO: 바뀌었는지 체크 필요함
     // const [modified, lastModified] = await isIndexFileModified(indexFileId, this.#lastModified);
 
@@ -93,7 +93,7 @@ export class GoogleDriveSyncRemoteStorage {
       this.#updateData(key, value),
       // index 파일 업데이트
       Promise.resolve().then(async () => {
-        await updateIndexFile(indexFileId, key, value);
+        await updateIndexFile(id, key, value);
 
         // const [, lastModified] = await isIndexFileModified(indexFileId);
         // TODO: 갱신 (필요함?)
@@ -132,7 +132,6 @@ export class GoogleDriveSyncRemoteStorage {
 async function isIndexFileModified(indexFileId, lastModified = Number.MIN_SAFE_INTEGER) {
   console.debug('check index file modified');
   const { result: indexFileRevisions } = await getFileRevisions({ fileId: indexFileId });
-  console.log(indexFileId);
   const latestRevision = indexFileRevisions.revisions.at(-1); // TODO: check if this is latest
   const modified = +new Date(latestRevision.modifiedTime);
   if (lastModified < modified) {
@@ -143,19 +142,19 @@ async function isIndexFileModified(indexFileId, lastModified = Number.MIN_SAFE_I
   return [false, modified];
 }
 
-async function readIndexFileId() {
-  console.debug('get index file id');
-  const { result: { files } } = await getFiles();
+async function getIndexFileInfo() {
+  console.debug('get index file info');
+  const { result: { files } } = await getFiles({ q: 'name = \'index\'', fields: `files(${['id', 'name', 'mimeType', 'modifiedTime', 'headRevisionId'].join(', ')})` });
   const indexFile = files.find(({ name }) => name === 'index');
 
   if (indexFile === undefined) {
     console.debug('no index file');
 
     await createIndexFile();
-    return readIndexFileId();
+    return getIndexFileInfo();
   }
 
-  return indexFile.id;
+  return indexFile;
 
   async function createIndexFile() {
     console.log('create index file');
