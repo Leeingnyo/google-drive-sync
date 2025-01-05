@@ -70,11 +70,31 @@ export class GoogleDriveSync {
   async loadRemote(key) {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
+
+    // remote load
+    const remoteData = await this.#_remote_storage.load(key);
+    console.log('remote data', remoteData);
+    // internal load
+    const internalData = this.#_internal_storage.load(key);
+    console.log('internal data', internalData);
+    // compare
+    // if diff
+      // selfMerge -> return remote load
+
+      // ignoreConflict
+      this.#_internal_storage.save(key, remoteData);
+      // internal load
+      return this.#_internal_storage.load(key);
+    // else
+      // ?
   }
 
   async saveRemote(key, value) {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
+
+    this.#_internal_storage.save(key, value);
+    return await this.#_remote_storage.save(key, value);
   }
 }
 
