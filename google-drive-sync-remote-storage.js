@@ -13,6 +13,7 @@ export class GoogleDriveSyncRemoteStorage {
   #config;
 
   #indexFileInfo;
+  #indexFileContent;
   #modifiedTime;
 
   // #remoteData;
@@ -27,13 +28,35 @@ export class GoogleDriveSyncRemoteStorage {
     return `${key}.data`;
   }
 
-  async #getIndexFileInfo() {
-    if (this.#indexFileInfo) {
-      return this.#indexFileInfo;
-    } else {
-      this.#indexFileInfo = await getIndexFileInfo();
+  async #getIndexFileInfo(cache = true) {
+    if (cache && this.#indexFileInfo) {
       return this.#indexFileInfo;
     }
+    this.#indexFileInfo = await getIndexFileInfo();
+    return this.#indexFileInfo;
+  }
+
+  async #readIndexFile(cache = true) {
+    if (cache && this.#indexFileContent) {
+      return this.#indexFileContent;
+    }
+    const { id } = await this.#getIndexFileInfo();
+    console.debug('[API] read file:', 'index');
+    const { result: indexFileContent } = await readFile({ fileId: id });
+    return this.#indexFileContent = indexFileContent;
+  }
+
+  async #updateIndexFile(key, value) {
+    const { id } = await this.#getIndexFileInfo();
+    const stringValue = JSON.stringify(value);
+    const hash = await digestMessage(stringValue);
+    const indexFileContent = await this.#readIndexFile();
+    indexFileContent[key] = hash;
+
+    this.#indexFileContent = indexFileContent;
+
+    console.debug('[API] udpate index file');
+    await updateFile({ fileId: id, mimeType: 'application/json', contents: indexFileContent });
   }
 
   // TODO: caching
@@ -80,22 +103,23 @@ export class GoogleDriveSyncRemoteStorage {
 
   async save(key, value) {
     console.debug('save remote', key, value);
-    const { id, modifiedTime: modifiedTimeString } = await getIndexFileInfo();
+    const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false); // 새로 가져옴
     const modifiedTime = +new Date(modifiedTimeString);
-    const isModified = this.#modifiedTime < modifiedTime;
+    const isModified = this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
 
     // TODO: 캐시 데이터에 반영
     // const cachedData = this.#getRemoteData();
     // cachedData[key] = value;
 
     // TODO: index 해시 같은 값이면 업데이트 안 함
+
     await Promise.all([
       // 파일 업데이트
       this.#updateData(key, value),
       // index 파일 업데이트
       Promise.resolve().then(async () => {
-        await updateIndexFile(id, key, value);
-        const { modifiedTime: modifiedTimeString } = await getIndexFileInfo();
+        await this.#updateIndexFile(key, value);
+        const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false);
         const modifiedTime = +new Date(modifiedTimeString);
 
         this.#modifiedTime = modifiedTime;
@@ -105,10 +129,13 @@ export class GoogleDriveSyncRemoteStorage {
   }
 
   async #readData(key) {
+    // TODO: caching
+    console.debug('[API] get file:', key);
     const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
     const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
     
     if (targetFile) {
+      console.debug('[API] read file:', key);
       const { result: fileContent } = await readFile({ fileId: targetFile.id });
       return fileContent;
     } else {
@@ -119,19 +146,23 @@ export class GoogleDriveSyncRemoteStorage {
   async #updateData(key, value) {
     const stringValue = JSON.stringify(value);
 
+    // TODO: caching
+    console.debug('[API] get file:', key);
     const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
     const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
 
     if (targetFile) {
+      console.debug('[API] update file:', key);
       await updateFile({ fileId: targetFile.id, mimeType: 'text/plain', contents: stringValue });
     } else {
+      console.debug('[API] create file:', key);
       await createFile({ name: this.#getRemoteFileName(key), mimeType: 'text/plain', contents: stringValue });
     }
   }
 }
 
 async function getIndexFileInfo() {
-  console.debug('get index file info');
+  console.debug('[API] get index file info');
   const { result: { files } } = await getFiles({ q: 'name = \'index\'', fields: `files(${['id', 'name', 'mimeType', 'modifiedTime', 'headRevisionId'].join(', ')})` });
   const indexFile = files.find(({ name }) => name === 'index');
 
@@ -145,7 +176,7 @@ async function getIndexFileInfo() {
   return indexFile;
 
   async function createIndexFile() {
-    console.log('create index file');
+    console.log('[API] create index file');
     const folderIdOptional = localStorage.getItem('folderId');
     const folderId = folderIdOptional ? folderIdOptional :
       prompt('Insert folderId to store \'index\' file.\nex) https://drive.google.com/drive/u/0/folders/{folderId}');
@@ -159,21 +190,6 @@ async function getIndexFileInfo() {
       contents: JSON.stringify({}),
     });
   }
-}
-
-async function readIndexFile(indexFileId) {
-  console.debug('read index file');
-  return await readFile({ fileId: indexFileId });
-}
-
-async function updateIndexFile(indexFileId, key, value) {
-  console.debug('udpate index file', indexFileId);
-  const stringValue = JSON.stringify(value);
-  const hash = await digestMessage(stringValue);
-  const { result: indexFileContent } = await readIndexFile(indexFileId);
-  indexFileContent[key] = hash;
-
-  await updateFile({ fileId: indexFileId, mimeType: 'application/json', contents: indexFileContent });
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest
