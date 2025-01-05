@@ -51,7 +51,10 @@ export class GoogleDriveSyncRemoteStorage {
     const stringValue = stringValue_ ?? JSON.stringify(value);
     const hash = hash_ ?? await digestMessage(stringValue);
     const indexFileContent = await this.#readIndexFile(false);
-    indexFileContent[key] = hash;
+    indexFileContent[key] = {
+      ...indexFileContent[key],
+      hash,
+    };
 
     this.#indexFileContent = indexFileContent;
 
@@ -115,7 +118,7 @@ export class GoogleDriveSyncRemoteStorage {
     const stringValue = JSON.stringify(value);
     const hash = await digestMessage(stringValue);
     const indexFileContent = await this.#readIndexFile();
-    if (indexFileContent[key] === hash) {
+    if (indexFileContent[key].hash === hash) {
       console.debug(key, 'not changed');
       return;
     }
