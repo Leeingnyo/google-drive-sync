@@ -18,6 +18,8 @@ interface GoogleDriveSyncConfig {
 }
 */
 
+const DIRTY_KEY = 'GDS.drity';
+
 /**
  * basic methods
  * - 데이터 저장하기, 불러오기
@@ -37,7 +39,7 @@ export class GoogleDriveSync {
   #_internal_storage;
   #_remote_storage;
 
-  #dirty = [];
+  #dirty;
 
   constructor(config) {
     this.config = config;
@@ -45,6 +47,8 @@ export class GoogleDriveSync {
     this.#_oauth_client = new GoogleDriveSyncOauthClient(config);
     this.#_internal_storage = new GoogleDriveSyncInternalStorage();
     this.#_remote_storage = new GoogleDriveSyncRemoteStorage(config);
+
+    this.#dirty = JSON.parse(localStorage.getItem(DIRTY_KEY)) || [];
   }
 
   load(key) {
@@ -56,6 +60,7 @@ export class GoogleDriveSync {
       return;
     }
     this.#dirty.push(key);
+    localStorage.setItem(DIRTY_KEY, JSON.stringify(this.#dirty));
     this.#_internal_storage.save(key, value);
   }
   remove(key) {
@@ -99,7 +104,15 @@ export class GoogleDriveSync {
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
     this.#_internal_storage.save(key, value);
-    return await this.#_remote_storage.save([{ key, value }]);
+
+    const entries = this.#dirty.map((key) => ({
+      key,
+      value: this.#_internal_storage.load(key),
+    })).concat([{ key, value }]);
+    await this.#_remote_storage.save(entries);
+
+    this.#dirty = [];
+    localStorage.setItem(DIRTY_KEY, JSON.stringify(this.#dirty));
   }
 
   async syncRemote() {
@@ -112,7 +125,9 @@ export class GoogleDriveSync {
       value: this.#_internal_storage.load(key),
     }));
     await this.#_remote_storage.save(entries);
+
     this.#dirty = [];
+    localStorage.setItem(DIRTY_KEY, JSON.stringify(this.#dirty));
   }
 }
 
