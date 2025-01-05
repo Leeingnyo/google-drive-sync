@@ -60,58 +60,76 @@ export class GoogleDriveSyncRemoteStorage {
     await updateFile({ fileId: id, mimeType: 'application/json', contents: indexFileContent });
   }
 
-  async load(key, internalData) {
-    console.debug('load remote', key);
+  /**
+   * @returns Promise<Array<Promise<any>>>
+   */
+  async load(entries) {
+    console.debug('load remote', entries);
     const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false); // 새로 가져옴
     const modifiedTime = +new Date(modifiedTimeString);
     const isModified = this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
 
     if (!isModified) {
       console.debug('not modified, return internalData');
-      return internalData;
+      return entries.map(async ({ internalData }) => internalData);
     }
 
     // save last modified
     this.#modifiedTime = modifiedTime;
     localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(modifiedTime));
 
-    // index 해시 같은 값이면 fetch 안 함
-    const stringValue = JSON.stringify(internalData);
-    const hash = await digestMessage(stringValue);
-    const indexFileContent = await this.#readIndexFile();
-    if (indexFileContent[key]?.hash === hash) {
-      console.debug(key, 'same');
-      return internalData;
-    }
-    console.debug(key, 'not same');
+    return entries.map(async ({ key, internalData }) => {
+      // index 해시 같은 값이면 fetch 안 함
+      const stringValue = JSON.stringify(internalData);
+      const hash = await digestMessage(stringValue);
+      const indexFileContent = await this.#readIndexFile();
+      if (indexFileContent[key]?.hash === hash) {
+        console.debug(key, 'same');
+        return internalData;
+      }
+      console.debug(key, 'not same');
 
-    // 파일 데이터 읽음
-    return this.#readData(key);
+      // 파일 데이터 읽음
+      return this.#readData(key);
+    });
   }
 
-  async save(key, value) {
-    console.debug('save remote', key, value);
+  async save(entries) {
+    console.debug('save remote', entries);
     const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false); // 새로 가져옴
     const modifiedTime = +new Date(modifiedTimeString);
     const isModified = this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
 
-    // TODO: 충돌 체크
-
-    // index 해시 같은 값이면 업데이트 안 함
-    const stringValue = JSON.stringify(value);
-    const hash = await digestMessage(stringValue);
-    const indexFileContent = await this.#readIndexFile();
-    if (indexFileContent[key]?.hash === hash) {
-      console.debug(key, 'not changed');
-      return;
+    if (isModified) {
+      throw Error('Conflict! load remote first');
     }
-    console.debug(key, 'changed');
 
-    // 파일 업데이트
-    const { id: fileId } = await this.#updateData(key, value, stringValue);
+    const updatedEntries = (await Promise.all(entries.map(async ({ key, value }) => {
+      // index 해시 같은 값이면 업데이트 안 함
+      const stringValue = JSON.stringify(value);
+      const hash = await digestMessage(stringValue);
+      const indexFileContent = await this.#readIndexFile();
+      if (indexFileContent[key]?.hash === hash) {
+        console.debug(key, 'not changed');
+        return;
+      }
+      console.debug(key, 'changed');
+
+      // 파일 업데이트
+      const { id: fileId } = await this.#updateData(key, value, stringValue);
+
+      return {
+        key,
+        value,
+        fileId,
+        stringValue,
+        hash,
+      };
+    }))).filter(i => i);
+
     // index 파일 업데이트
-    {
-      await this.#updateIndexFile([{ key, value, fileId, stringValue, hash }]);
+    if (updatedEntries.length > 0) {
+      await this.#updateIndexFile(updatedEntries);
       const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false);
       const modifiedTime = +new Date(modifiedTimeString);
 

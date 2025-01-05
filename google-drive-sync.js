@@ -73,10 +73,8 @@ export class GoogleDriveSync {
 
     // internal load
     const internalData = this.#_internal_storage.load(key);
-    console.log('internal data', internalData);
     // remote load
-    const remoteData = await this.#_remote_storage.load(key, internalData);
-    console.log('remote data', remoteData);
+    const remoteData = await (await this.#_remote_storage.load([{ key, internalData }]))[0];
     // compare
     // if diff
       // selfMerge -> return remote load
@@ -94,7 +92,7 @@ export class GoogleDriveSync {
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
     this.#_internal_storage.save(key, value);
-    return await this.#_remote_storage.save(key, value);
+    return await this.#_remote_storage.save([{ key, value }]);
   }
 }
 
