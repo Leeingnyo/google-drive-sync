@@ -16,8 +16,6 @@ export class GoogleDriveSyncRemoteStorage {
   #indexFileContent;
   #modifiedTime;
 
-  // #remoteData;
-
   constructor(config) {
     this.#config = config;
 
@@ -63,22 +61,8 @@ export class GoogleDriveSyncRemoteStorage {
     await updateFile({ fileId: id, mimeType: 'application/json', contents: indexFileContent });
   }
 
-  // TODO: caching
-  /*
-  async #getRemoteData() {
-    if (this.#remoteData === undefined) {
-      this.#remoteData = {};
-    }
-    return this.#remoteData;
-  }
-  */
-
   async load(key, internalData) {
     console.debug('load remote', key);
-    // TODO: caching
-    // const indexFileId = await this.#getIndexFileId();
-    // 안 바뀌었으면
-    // TODO: caching
     const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false); // 새로 가져옴
     const modifiedTime = +new Date(modifiedTimeString);
     const isModified = this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
@@ -112,9 +96,7 @@ export class GoogleDriveSyncRemoteStorage {
     const modifiedTime = +new Date(modifiedTimeString);
     const isModified = this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
 
-    // TODO: 캐시 데이터에 반영
-    // const cachedData = this.#getRemoteData();
-    // cachedData[key] = value;
+    // TODO: 충돌 체크
 
     // index 해시 같은 값이면 업데이트 안 함
     const stringValue = JSON.stringify(value);
