@@ -139,14 +139,22 @@ export class GoogleDriveSyncRemoteStorage {
   }
 
   async #readData(key) {
-    // TODO: caching
-    console.debug('[API] get file:', key);
-    const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
-    const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
+    const fileId = await (async () => {
+      const indexFileContent = await this.#readIndexFile();
+      const fileIdInIndex = indexFileContent[key].fileId;
+      if (fileIdInIndex) {
+        return fileIdInIndex;
+      }
+
+      console.debug('[API] get file:', key);
+      const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
+      const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
+      return targetFile?.id;
+    })();
     
-    if (targetFile) {
+    if (fileId) {
       console.debug('[API] read file:', key);
-      const { result: fileContent } = await readFile({ fileId: targetFile.id });
+      const { result: fileContent } = await readFile({ fileId });
       return fileContent;
     } else {
       return;
@@ -156,14 +164,22 @@ export class GoogleDriveSyncRemoteStorage {
   async #updateData(key, value, stringValue_) {
     const stringValue = stringValue_ ?? JSON.stringify(value);
 
-    // TODO: caching
-    console.debug('[API] get file:', key);
-    const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
-    const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
+    const fileId = await (async () => {
+      const indexFileContent = await this.#readIndexFile();
+      const fileIdInIndex = indexFileContent[key].fileId;
+      if (fileIdInIndex) {
+        return fileIdInIndex;
+      }
 
-    if (targetFile) {
+      console.debug('[API] get file:', key);
+      const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
+      const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
+      return targetFile?.id;
+    })();
+
+    if (fileId) {
       console.debug('[API] update file:', key);
-      const { result } = await updateFile({ fileId: targetFile.id, mimeType: 'text/plain', contents: stringValue });
+      const { result } = await updateFile({ fileId, mimeType: 'text/plain', contents: stringValue });
       return result;
     } else {
       console.debug('[API] create file:', key);
