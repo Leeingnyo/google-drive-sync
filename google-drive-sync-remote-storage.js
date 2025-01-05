@@ -22,10 +22,6 @@ export class GoogleDriveSyncRemoteStorage {
     this.#modifiedTime = JSON.parse(localStorage.getItem(MODIFIED_TIME_KEY));
   }
 
-  #getRemoteFileName(key) {
-    return `${key}.data`;
-  }
-
   async #getIndexFileInfo(cache = true) {
     if (cache && this.#indexFileInfo) {
       return this.#indexFileInfo;
@@ -44,19 +40,22 @@ export class GoogleDriveSyncRemoteStorage {
     return this.#indexFileContent = indexFileContent;
   }
 
-  async #updateIndexFile(key, value, fileId, stringValue_, hash_) {
-    const { id } = await this.#getIndexFileInfo();
-    const stringValue = stringValue_ ?? JSON.stringify(value);
-    const hash = hash_ ?? await digestMessage(stringValue);
+  async #updateIndexFile(modifiedData) {
     const indexFileContent = await this.#readIndexFile(false);
-    indexFileContent[key] = {
-      ...indexFileContent[key],
-      fileId,
-      hash,
-    };
+
+    await Promise.all(modifiedData.map(async ({ key, value, fileId, stringValue_, hash_ }) => {
+      const stringValue = stringValue_ ?? JSON.stringify(value);
+      const hash = hash_ ?? await digestMessage(stringValue);
+      indexFileContent[key] = {
+        ...indexFileContent[key],
+        fileId,
+        hash,
+      };
+    }));
 
     this.#indexFileContent = indexFileContent;
 
+    const { id } = await this.#getIndexFileInfo();
     console.debug('[API] udpate index file');
     await updateFile({ fileId: id, mimeType: 'application/json', contents: indexFileContent });
   }
@@ -112,13 +111,18 @@ export class GoogleDriveSyncRemoteStorage {
     const { id: fileId } = await this.#updateData(key, value, stringValue);
     // index 파일 업데이트
     {
-      await this.#updateIndexFile(key, value, fileId, stringValue, hash);
+      await this.#updateIndexFile([{ key, value, fileId, stringValue, hash }]);
       const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false);
       const modifiedTime = +new Date(modifiedTimeString);
 
       this.#modifiedTime = modifiedTime;
       localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(modifiedTime));
     }
+  }
+
+  // ----------- 개별 파일 관련 -----------
+  #getRemoteFileName(key) {
+    return `${key}.data`;
   }
 
   async #getFileId(key) {
