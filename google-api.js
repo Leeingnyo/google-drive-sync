@@ -64,7 +64,7 @@ export function getFileRevision({ fileId, revisionId, acknowledgeAbuse }) {
 
 export function updateFile({ fileId, mimeType = '*/*', contents }) {
   if (!fileId) {
-     throw Error('\'fieldId\' is required');
+     throw Error('\'fileId\' is required');
   }
   return gapi.client.request({
     path:`/upload/drive/v3/files/${fileId}`,
@@ -77,5 +77,12 @@ export function updateFile({ fileId, mimeType = '*/*', contents }) {
     },
     body: contents
   });
+}
+
+export function deleteFile({ fileId }) {
+  if (!fileId) {
+    throw Error('\'fileId\' is required');
+  }
+  return gapi.client.drive.files.delete({ fileId });
 }
 
