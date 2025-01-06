@@ -63,7 +63,7 @@ export class GoogleDriveSyncRemoteStorage {
   /**
    * @returns Promise<Array<Promise<any>>>
    */
-  async load(entries) {
+  async load(entries, force = false) {
     console.debug('load remote', entries);
     const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false); // 새로 가져옴
     const modifiedTime = +new Date(modifiedTimeString);
@@ -71,7 +71,7 @@ export class GoogleDriveSyncRemoteStorage {
         this.#modifiedTime === undefined || // 인덱스 파일이 없거나
         this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
 
-    if (!isModified) {
+    if (!isModified && !force) {
       console.debug('not modified, return internalData');
       return entries.map(async ({ internalData }) => internalData);
     }

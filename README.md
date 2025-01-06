@@ -50,6 +50,7 @@ Methods
   * logout
 * remote storage methods
   * loadRemote(key)
+  * loadRemoteForce(key)
   * saveRemote(key, value)
   * syncRemote()
 
@@ -97,5 +98,4 @@ window.addEventListener('SyncReady', async () => {
 * Implement mutex in saveRemote
 * Fix some bugs when data files have deleted in google drive by user
   * Please remove the index file to fix this bug
-* Implement loadRemote forcely
 

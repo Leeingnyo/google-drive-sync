@@ -101,6 +101,12 @@ export class GoogleDriveSync {
       // ?
   }
 
+  async loadRemoteForce(key) {
+    const remoteData = await (await this.#_remote_storage.load([{ key }], true))[0];
+    this.#_internal_storage.save(key, remoteData);
+    return this.#_internal_storage.load(key);
+  }
+
   async saveRemote(key, value) {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
