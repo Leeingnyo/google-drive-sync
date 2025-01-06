@@ -43,14 +43,18 @@ export class GoogleDriveSyncRemoteStorage {
   async #updateIndexFile(modifiedData) {
     const indexFileContent = await this.#readIndexFile(false);
 
-    await Promise.all(modifiedData.map(async ({ key, value, fileId, stringValue_, hash_ }) => {
-      const stringValue = stringValue_ ?? JSON.stringify(value);
-      const hash = hash_ ?? await digestMessage(stringValue);
-      indexFileContent[key] = {
-        ...indexFileContent[key],
-        fileId,
-        hash,
-      };
+    await Promise.all(modifiedData.map(async ({ type, key, value, fileId, stringValue_, hash_ }) => {
+      if (type === 'save') {
+        const stringValue = stringValue_ ?? JSON.stringify(value);
+        const hash = hash_ ?? await digestMessage(stringValue);
+        indexFileContent[key] = {
+          ...indexFileContent[key],
+          fileId,
+          hash,
+        };
+      } else if (type === 'remove') {
+        delete indexFileContent[key];
+      }
     }));
 
     this.#indexFileContent = indexFileContent;
@@ -108,27 +112,37 @@ export class GoogleDriveSyncRemoteStorage {
       throw Error('Conflict! load remote first');
     }
 
-    const updatedEntries = (await Promise.all(entries.map(async ({ key, value }) => {
-      // index 해시 같은 값이면 업데이트 안 함
-      const stringValue = JSON.stringify(value);
-      const hash = await digestMessage(stringValue);
-      const indexFileContent = await this.#readIndexFile();
-      if (indexFileContent[key]?.hash === hash) {
-        console.debug(key, 'not changed');
-        return;
+    const updatedEntries = (await Promise.all(entries.map(async ({ type, key, value }) => {
+      if (type === 'save') {
+        // index 해시 같은 값이면 업데이트 안 함
+        const stringValue = JSON.stringify(value);
+        const hash = await digestMessage(stringValue);
+        const indexFileContent = await this.#readIndexFile();
+        if (indexFileContent[key]?.hash === hash) {
+          console.debug(key, 'not changed');
+          return;
+        }
+        console.debug(key, 'changed');
+
+        // 파일 업데이트
+        const { id: fileId } = await this.#updateData(key, value, stringValue);
+
+        return {
+          type,
+          key,
+          value,
+          fileId,
+          stringValue,
+          hash,
+        };
+      } else if (type === 'remove') {
+        // remove api
+
+        return {
+          type,
+          key,
+        };
       }
-      console.debug(key, 'changed');
-
-      // 파일 업데이트
-      const { id: fileId } = await this.#updateData(key, value, stringValue);
-
-      return {
-        key,
-        value,
-        fileId,
-        stringValue,
-        hash,
-      };
     }))).filter(i => i);
 
     // index 파일 업데이트
