@@ -19,6 +19,7 @@ interface GoogleDriveSyncConfig {
 */
 
 const DIRTY_KEY = 'GDS.drity';
+const REMOVED_KEY = 'GDS.removed';
 
 /**
  * basic methods
@@ -40,6 +41,7 @@ export class GoogleDriveSync {
   #_remote_storage;
 
   #dirty;
+  #removed;
   #mutex;
 
   constructor(config) {
@@ -50,6 +52,7 @@ export class GoogleDriveSync {
     this.#_remote_storage = new GoogleDriveSyncRemoteStorage(config);
 
     this.#dirty = new Set(JSON.parse(localStorage.getItem(DIRTY_KEY)) || []);
+    this.#removed = new Set(JSON.parse(localStorage.getItem(REMOVED_KEY)) || []);
     this.#mutex = new Mutex();
   }
 
@@ -63,11 +66,15 @@ export class GoogleDriveSync {
     }
     this.#dirty.add(key);
     localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
+    this.#removed.delete(key);
+    localStorage.setItem(REMOVED_KEY, JSON.stringify([...this.#removed]));
     this.#_internal_storage.save(key, value);
   }
   remove(key) {
     this.#dirty.delete(key);
     localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
+    this.#removed.add(key);
+    localStorage.setItem(REMOVED_KEY, JSON.stringify([...this.#removed]));
     this.#_internal_storage.remove(key);
   }
 
@@ -131,7 +138,10 @@ export class GoogleDriveSync {
       type: 'save',
       key,
       value: this.#_internal_storage.load(key),
-    }));
+    })).concat([...this.#removed].map((key) => ({
+      type: 'remove',
+      key,
+    })));
   }
 
   async #writeRemote(entries) {
@@ -142,6 +152,8 @@ export class GoogleDriveSync {
 
       this.#dirty = new Set();
       localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
+      this.#removed = new Set();
+      localStorage.setItem(REMOVED_KEY, JSON.stringify([...this.#removed]));
     } finally {
       this.#mutex.release();
     }
@@ -151,11 +163,10 @@ export class GoogleDriveSync {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
-    const entries = this.#getDirtyRemovedEntries().concat([{
-      type: 'save',
-      key,
-      value,
-    }]);
+    this.#dirty.add(key);
+    this.#removed.delete(key);
+
+    const entries = this.#getDirtyRemovedEntries();
     await this.#writeRemote(entries);
     this.#_internal_storage.save(key, value);
   }
@@ -164,9 +175,20 @@ export class GoogleDriveSync {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
-    if (this.#dirty.size === 0) {
+    if (this.#dirty.size === 0 && this.#removed.size === 0) {
       return;
     }
+
+    const entries = this.#getDirtyRemovedEntries();
+    await this.#writeRemote(entries);
+  }
+
+  async removeRemote(key) {
+    if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
+
+    this.#dirty.delete(key);
+    this.#removed.add(key);
 
     const entries = this.#getDirtyRemovedEntries();
     await this.#writeRemote(entries);
