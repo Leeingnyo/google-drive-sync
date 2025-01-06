@@ -64,6 +64,8 @@ export class GoogleDriveSync {
     this.#_internal_storage.save(key, value);
   }
   remove(key) {
+    this.#dirty.delete(key);
+    localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
     this.#_internal_storage.remove(key);
   }
 
