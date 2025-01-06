@@ -126,24 +126,18 @@ export class GoogleDriveSync {
     return this.#_internal_storage.load(key);
   }
 
-  async saveRemote(key, value) {
-    if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
-    if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
+  #getDirtyRemovedEntries() {
+    return [...this.#dirty].map((key) => ({
+      type: 'save',
+      key,
+      value: this.#_internal_storage.load(key),
+    }));
+  }
 
+  async #writeRemote(entries) {
     try {
       await this.#mutex.acquire();
 
-      this.#_internal_storage.save(key, value);
-
-      const entries = [...this.#dirty].map((key) => ({
-        type: 'save',
-        key,
-        value: this.#_internal_storage.load(key),
-      })).concat([{
-        type: 'save',
-        key,
-        value,
-      }]);
       await this.#_remote_storage.save(entries);
 
       this.#dirty = new Set();
@@ -151,6 +145,19 @@ export class GoogleDriveSync {
     } finally {
       this.#mutex.release();
     }
+  }
+
+  async saveRemote(key, value) {
+    if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
+
+    const entries = this.#getDirtyRemovedEntries().concat([{
+      type: 'save',
+      key,
+      value,
+    }]);
+    await this.#writeRemote(entries);
+    this.#_internal_storage.save(key, value);
   }
 
   async syncRemote() {
@@ -161,21 +168,8 @@ export class GoogleDriveSync {
       return;
     }
 
-    try {
-      await this.#mutex.acquire();
-
-      const entries = [...this.#dirty].map((key) => ({
-        type: 'save',
-        key,
-        value: this.#_internal_storage.load(key),
-      }));
-      await this.#_remote_storage.save(entries);
-
-      this.#dirty = new Set();
-      localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
-    } finally {
-      this.#mutex.release();
-    }
+    const entries = this.#getDirtyRemovedEntries();
+    await this.#writeRemote(entries);
   }
 }
 
