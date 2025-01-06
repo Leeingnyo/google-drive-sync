@@ -19,7 +19,7 @@ export class GoogleDriveSyncRemoteStorage {
   constructor(config) {
     this.#config = config;
 
-    this.#modifiedTime = JSON.parse(localStorage.getItem(MODIFIED_TIME_KEY));
+    this.#modifiedTime = JSON.parse(localStorage.getItem(MODIFIED_TIME_KEY)) ?? undefined;
   }
 
   async #getIndexFileInfo(cache = true) {
@@ -67,7 +67,9 @@ export class GoogleDriveSyncRemoteStorage {
     console.debug('load remote', entries);
     const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false); // 새로 가져옴
     const modifiedTime = +new Date(modifiedTimeString);
-    const isModified = this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
+    const isModified =
+        this.#modifiedTime === undefined || // 인덱스 파일이 없거나
+        this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
 
     if (!isModified) {
       console.debug('not modified, return internalData');
@@ -98,7 +100,9 @@ export class GoogleDriveSyncRemoteStorage {
     console.debug('save remote', entries);
     const { modifiedTime: modifiedTimeString } = await this.#getIndexFileInfo(false); // 새로 가져옴
     const modifiedTime = +new Date(modifiedTimeString);
-    const isModified = this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
+    const isModified =
+        this.#modifiedTime !== undefined && // 인덱스 파일이 없고
+        this.#modifiedTime < modifiedTime; // 남이 수정했는지 여부 체크
 
     if (isModified) {
       throw Error('Conflict! load remote first');

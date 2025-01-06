@@ -98,5 +98,4 @@ window.addEventListener('SyncReady', async () => {
 * Fix some bugs when data files have deleted in google drive by user
   * Please remove the index file to fix this bug
 * Implement loadRemote forcely
-* Allow to call saveRemote before loadRemote called
 
