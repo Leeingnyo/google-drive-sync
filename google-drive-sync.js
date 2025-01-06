@@ -154,6 +154,9 @@ export class GoogleDriveSync {
   }
 
   async syncRemote() {
+    if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
+
     if (this.#dirty.size === 0) {
       return;
     }
