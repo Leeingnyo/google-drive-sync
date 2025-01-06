@@ -48,7 +48,7 @@ export class GoogleDriveSync {
     this.#_internal_storage = new GoogleDriveSyncInternalStorage();
     this.#_remote_storage = new GoogleDriveSyncRemoteStorage(config);
 
-    this.#dirty = JSON.parse(localStorage.getItem(DIRTY_KEY)) || [];
+    this.#dirty = new Set(JSON.parse(localStorage.getItem(DIRTY_KEY)) || []);
   }
 
   load(key) {
@@ -59,8 +59,8 @@ export class GoogleDriveSync {
     if (isEqual(previousValue, value)) {
       return;
     }
-    this.#dirty.push(key);
-    localStorage.setItem(DIRTY_KEY, JSON.stringify(this.#dirty));
+    this.#dirty.add(key);
+    localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
     this.#_internal_storage.save(key, value);
   }
   remove(key) {
@@ -105,29 +105,29 @@ export class GoogleDriveSync {
 
     this.#_internal_storage.save(key, value);
 
-    const entries = this.#dirty.map((key) => ({
+    const entries = [...this.#dirty].map((key) => ({
       key,
       value: this.#_internal_storage.load(key),
     })).concat([{ key, value }]);
     await this.#_remote_storage.save(entries);
 
-    this.#dirty = [];
-    localStorage.setItem(DIRTY_KEY, JSON.stringify(this.#dirty));
+    this.#dirty = new Set();
+    localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
   }
 
   async syncRemote() {
-    if (this.#dirty.length === 0) {
+    if (this.#dirty.size === 0) {
       return;
     }
 
-    const entries = this.#dirty.map((key) => ({
+    const entries = [...this.#dirty].map((key) => ({
       key,
       value: this.#_internal_storage.load(key),
     }));
     await this.#_remote_storage.save(entries);
 
-    this.#dirty = [];
-    localStorage.setItem(DIRTY_KEY, JSON.stringify(this.#dirty));
+    this.#dirty = new Set();
+    localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
   }
 }
 
