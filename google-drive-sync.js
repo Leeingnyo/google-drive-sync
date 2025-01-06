@@ -165,6 +165,17 @@ export class GoogleDriveSync {
     this.#_internal_storage.save(key, value);
   }
 
+  async removeRemote(key) {
+    if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
+    if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
+
+    this.#dirty.delete(key);
+    this.#removed.add(key);
+
+    const entries = this.#getDirtyRemovedEntries();
+    await this.#writeRemote(entries);
+  }
+
   async syncRemote() {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
@@ -172,17 +183,6 @@ export class GoogleDriveSync {
     if (this.#dirty.size === 0 && this.#removed.size === 0) {
       return;
     }
-
-    const entries = this.#getDirtyRemovedEntries();
-    await this.#writeRemote(entries);
-  }
-
-  async removeRemote(key) {
-    if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
-    if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
-
-    this.#dirty.delete(key);
-    this.#removed.add(key);
 
     const entries = this.#getDirtyRemovedEntries();
     await this.#writeRemote(entries);
