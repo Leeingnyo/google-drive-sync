@@ -97,4 +97,6 @@ window.addEventListener('SyncReady', async () => {
 * Implement mutex in saveRemote
 * Fix some bugs when data files have deleted in google drive by user
   * Please remove the index file to fix this bug
-
+* Implement loadRemote forcely
+* Allow to call saveRemote before loadRemote called
+* Change `#dirty` to `Set` instead of `Array`
