@@ -52,6 +52,7 @@ Methods
   * loadRemote(key)
   * loadRemoteForce(key)
   * saveRemote(key, value)
+  * removeRemote(key)
   * syncRemote()
 
 Events
@@ -92,7 +93,6 @@ window.addEventListener('SyncReady', async () => {
 
 ## TODO
 
-* Implement removeRemote(key)
 * Implement methods to resolve conflict
 * Fix some bugs when data files have deleted in google drive by user
   * Please remove the index file to fix this bug
