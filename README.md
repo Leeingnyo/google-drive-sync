@@ -93,7 +93,6 @@ window.addEventListener('SyncReady', async () => {
 ## TODO
 
 * Implement removeRemote(key)
-* Implement loadRemoteBulk (interface)
 * Implement methods to resolve conflict
 * Implement mutex in saveRemote
 * Fix some bugs when data files have deleted in google drive by user

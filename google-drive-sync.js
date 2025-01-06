@@ -81,22 +81,39 @@ export class GoogleDriveSync {
     this.#_oauth_client.logout();
   }
 
+  /**
+   * string -> any
+   * string[] -> Array<Promise<any>>
+   */
   async loadRemote(key) {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
-    // internal load
-    const internalData = this.#_internal_storage.load(key);
+    const isPlural = Array.isArray(key);
+
+    const params = isPlural ? key : [key];
+
+    const entries = params.map(key => ({
+      key,
+      internalData: this.#_internal_storage.load(key)
+    }));
     // remote load
-    const remoteData = await (await this.#_remote_storage.load([{ key, internalData }]))[0];
+    const remoteData = await this.#_remote_storage.load(entries);
     // compare
     // if diff
       // selfMerge -> return remote load
 
       // ignoreConflict
-      this.#_internal_storage.save(key, remoteData);
+      remoteData.forEach(async (remoteDataPromise, index) => {
+        const key = params[index];
+        this.#_internal_storage.save(key, await remoteDataPromise);
+      });
       // internal load
-      return this.#_internal_storage.load(key);
+      if (isPlural) {
+        return remoteData;
+      } else {
+        return remoteData[0];
+      }
     // else
       // ?
   }
