@@ -5,6 +5,7 @@ import { // gapi
   getFileRevision,
   readFile,
   updateFile,
+  deleteFile,
 } from './google-api.js';
 
 const MODIFIED_TIME_KEY = 'GDS.modifiedTime';
@@ -136,7 +137,7 @@ export class GoogleDriveSyncRemoteStorage {
           hash,
         };
       } else if (type === 'remove') {
-        // remove api
+        await this.#removeFile(key);
 
         return {
           type,
@@ -200,6 +201,15 @@ export class GoogleDriveSyncRemoteStorage {
       console.debug('[API] create file:', key);
       const { result } = await createFile({ name: this.#getRemoteFileName(key), mimeType: 'text/plain', contents: stringValue, folderId: parents[0] });
       return result;
+    }
+  }
+
+  async #removeFile(key) {
+    const fileId = await this.#getFileId(key);
+
+    if (fileId) {
+      console.debug('[API] delete file:', key);
+      const { result } = await deleteFile({ fileId });
     }
   }
 }
