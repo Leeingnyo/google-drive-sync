@@ -40,6 +40,7 @@ export class GoogleDriveSync {
   #_remote_storage;
 
   #dirty;
+  #mutex;
 
   constructor(config) {
     this.config = config;
@@ -49,6 +50,7 @@ export class GoogleDriveSync {
     this.#_remote_storage = new GoogleDriveSyncRemoteStorage(config);
 
     this.#dirty = new Set(JSON.parse(localStorage.getItem(DIRTY_KEY)) || []);
+    this.#mutex = new Mutex();
   }
 
   load(key) {
@@ -128,16 +130,22 @@ export class GoogleDriveSync {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
-    this.#_internal_storage.save(key, value);
+    try {
+      await this.#mutex.acquire();
 
-    const entries = [...this.#dirty].map((key) => ({
-      key,
-      value: this.#_internal_storage.load(key),
-    })).concat([{ key, value }]);
-    await this.#_remote_storage.save(entries);
+      this.#_internal_storage.save(key, value);
 
-    this.#dirty = new Set();
-    localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
+      const entries = [...this.#dirty].map((key) => ({
+        key,
+        value: this.#_internal_storage.load(key),
+      })).concat([{ key, value }]);
+      await this.#_remote_storage.save(entries);
+
+      this.#dirty = new Set();
+      localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
+    } finally {
+      this.#mutex.release();
+    }
   }
 
   async syncRemote() {
@@ -145,14 +153,62 @@ export class GoogleDriveSync {
       return;
     }
 
-    const entries = [...this.#dirty].map((key) => ({
-      key,
-      value: this.#_internal_storage.load(key),
-    }));
-    await this.#_remote_storage.save(entries);
+    try {
+      await this.#mutex.acquire();
 
-    this.#dirty = new Set();
-    localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
+      const entries = [...this.#dirty].map((key) => ({
+        key,
+        value: this.#_internal_storage.load(key),
+      }));
+      await this.#_remote_storage.save(entries);
+
+      this.#dirty = new Set();
+      localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
+    } finally {
+      this.#mutex.release();
+    }
+  }
+}
+
+/**
+ * 순서 보장 Mutex
+ *
+ * ```
+ * // example
+ * const lock = new Mutex();
+ * async function job() {
+ *   try {
+ *     await lock.acquire();
+ *     // critical section: do your async job
+ *   } finally {
+ *     lock.release();
+ *   }
+ * }
+ * ```
+ */
+class Mutex {
+  _lock = false;
+  _notifies = [];
+
+  async acquire() {
+    if (!this._lock) {
+      this._lock = true; // 열쇠 획득
+    } else {
+      await new Promise(resolve => {
+        this._notifies.push(resolve); // 줄 서기
+      });
+    }
+  }
+
+  release() {
+    if (this._lock === true) {
+      if (this._notifies.length > 0) {
+        const notify = this._notifies.shift();
+        notify(); // 다음 분!
+      } else {
+        this._lock = false; // 열쇠 두기
+      }
+    }
   }
 }
 

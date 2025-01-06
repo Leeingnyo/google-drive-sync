@@ -94,7 +94,6 @@ window.addEventListener('SyncReady', async () => {
 
 * Implement removeRemote(key)
 * Implement methods to resolve conflict
-* Implement mutex in saveRemote
 * Fix some bugs when data files have deleted in google drive by user
   * Please remove the index file to fix this bug
 
