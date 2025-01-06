@@ -51,8 +51,8 @@ export class GoogleDriveSync {
     this.#_internal_storage = new GoogleDriveSyncInternalStorage();
     this.#_remote_storage = new GoogleDriveSyncRemoteStorage(config);
 
-    this.#dirty = new Set(JSON.parse(localStorage.getItem(DIRTY_KEY)) || []);
-    this.#removed = new Set(JSON.parse(localStorage.getItem(REMOVED_KEY)) || []);
+    this.#dirty = new LocalStorageSet(DIRTY_KEY);
+    this.#removed = new LocalStorageSet(REMOVED_KEY);
     this.#mutex = new Mutex();
   }
 
@@ -65,16 +65,12 @@ export class GoogleDriveSync {
       return;
     }
     this.#dirty.add(key);
-    localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
     this.#removed.delete(key);
-    localStorage.setItem(REMOVED_KEY, JSON.stringify([...this.#removed]));
     this.#_internal_storage.save(key, value);
   }
   remove(key) {
     this.#dirty.delete(key);
-    localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
     this.#removed.add(key);
-    localStorage.setItem(REMOVED_KEY, JSON.stringify([...this.#removed]));
     this.#_internal_storage.remove(key);
   }
 
@@ -150,10 +146,8 @@ export class GoogleDriveSync {
 
       await this.#_remote_storage.save(entries);
 
-      this.#dirty = new Set();
-      localStorage.setItem(DIRTY_KEY, JSON.stringify([...this.#dirty]));
-      this.#removed = new Set();
-      localStorage.setItem(REMOVED_KEY, JSON.stringify([...this.#removed]));
+      this.#dirty.clear();
+      this.#removed.clear();
     } finally {
       this.#mutex.release();
     }
@@ -234,6 +228,39 @@ class Mutex {
         this._lock = false; // 열쇠 두기
       }
     }
+  }
+}
+
+class LocalStorageSet {
+  #key;
+  #set;
+
+  get [Symbol.iterator]() {
+    return this.#set[Symbol.iterator].bind(this.#set);
+  }
+
+  constructor(key) {
+    this.#key = key;
+    this.#set = new Set(JSON.parse(localStorage.getItem(key)) ?? []);
+  }
+
+  #save() {
+    localStorage.setItem(this.#key, JSON.stringify([...this.#set]));
+  }
+
+  add(value) {
+    this.#set.add(value);
+    this.#save();
+  }
+
+  delete(value) {
+    this.#set.delete(value);
+    this.#save();
+  }
+
+  clear(value) {
+    this.#set.clear();
+    this.#save();
   }
 }
 
