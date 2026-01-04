@@ -109,18 +109,28 @@ export class GoogleDriveSync {
     // if diff
       // selfMerge -> return remote load
 
-      // ignoreConflict
-      await this.#mutex.waitForUnlock();
-      remoteData.forEach((data, index) => {
-        const key = params[index];
-        this.#_internal_storage.save(key, data);
-      });
-      // internal load
-      if (isPlural) {
-        return remoteData;
-      } else {
-        return remoteData[0];
+    // ignoreConflict
+    await this.#mutex.waitForUnlock();
+    const finalData = remoteData.map((data, index) => {
+      const key = params[index];
+      if (this.#dirty.has(key)) {
+        // save > load
+        return this.#_internal_storage.load(key);
       }
+      if (this.#removed.has(key)) {
+        // remove > load
+        this.#_internal_storage.remove(key);
+        return undefined;
+      }
+      this.#_internal_storage.save(key, data);
+      return data;
+    });
+    // internal load
+    if (isPlural) {
+      return finalData;
+    } else {
+      return finalData[0];
+    }
     // else
       // ?
   }
