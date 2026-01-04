@@ -226,6 +226,7 @@ export class GoogleDriveSync {
 class Mutex {
   _lock = false;
   _notifies = [];
+  _unlockNotifies = [];
 
   async acquire() {
     if (!this._lock) {
@@ -244,8 +245,22 @@ class Mutex {
         notify(); // 다음 분!
       } else {
         this._lock = false; // 열쇠 두기
+        if (this._unlockNotifies.length > 0) {
+          const notifies = this._unlockNotifies.slice();
+          this._unlockNotifies = [];
+          notifies.forEach((notify) => notify());
+        }
       }
     }
+  }
+
+  async waitForUnlock() {
+    if (!this._lock) {
+      return;
+    }
+    await new Promise(resolve => {
+      this._unlockNotifies.push(resolve);
+    });
   }
 }
 
