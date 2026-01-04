@@ -10,12 +10,14 @@ export class GoogleDriveSyncOauthClient {
   #_user_drive_ready;
   #_client;
   #_timeout;
+  #_refresh_promise;
 
   constructor(config) {
     this.config = config;
 
     this.#_google_ready = false;
     this.#_user_drive_ready = false;
+    this.#_refresh_promise = null;
   }
 
   get isGoogleReady() {
@@ -99,6 +101,70 @@ export class GoogleDriveSyncOauthClient {
     this.#_user_drive_ready = true;
   }
 
+  async refreshAccessToken() {
+    if (this.#_refresh_promise) {
+      return this.#_refresh_promise;
+    }
+    this.#_refresh_promise = this.#refreshAccessTokenInternal();
+    try {
+      return await this.#_refresh_promise;
+    } finally {
+      this.#_refresh_promise = null;
+    }
+  }
+
+  async #refreshAccessTokenInternal() {
+    if (!this.#_google_ready) {
+      return false;
+    }
+
+    if (this.config.useOffline) {
+      const storedRefreshToken = localStorage.getItem(GOAUTH_REFRESH_TOKEN_KEY);
+      if (!storedRefreshToken) {
+        return false;
+      }
+      try {
+        const token = await refreshToken({ refreshToken: storedRefreshToken });
+        if (!token || token.error) {
+          return false;
+        }
+        this.#handleLogin(token);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    if (!this.#_client) {
+      return false;
+    }
+
+    return new Promise((resolve) => {
+      const originalCallback = this.#_client.callback;
+      let done = false;
+      const finish = (result) => {
+        if (done) {
+          return;
+        }
+        done = true;
+        this.#_client.callback = originalCallback;
+        resolve(result);
+      };
+
+      this.#_client.callback = (token) => {
+        if (token?.error) {
+          finish(false);
+          return;
+        }
+        this.#handleLogin(token);
+        finish(true);
+      };
+
+      this.#_client.requestAccessToken({ prompt: '' });
+      setTimeout(() => finish(false), 10000);
+    });
+  }
+
   /**
    * 로그인하기
    */
@@ -132,4 +198,3 @@ export class GoogleDriveSyncOauthClient {
     this.#_user_drive_ready = false;
   }
 }
-
