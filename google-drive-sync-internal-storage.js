@@ -20,16 +20,31 @@ export class GoogleDriveSyncInternalStorage {
 
     if (type === 'undefined') {
       return;
-    } else if (type === 'bigint') {
-      return BigInt(JSON.parse(data));
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(data);
+    } catch (error) {
+      this.remove(key);
+      return;
+    }
+
+    if (type === 'bigint') {
+      try {
+        return BigInt(parsed);
+      } catch (error) {
+        this.remove(key);
+        return;
+      }
     } else if (type === 'number') {
-      return JSON.parse(data);
+      return parsed;
     } else if (type === 'string') {
-      return JSON.parse(data);
+      return parsed;
     } else if (type === 'boolean') {
-      return JSON.parse(data);
+      return parsed;
     } else if (type === 'object') {
-      return JSON.parse(data);
+      return parsed;
     }
   }
 
@@ -49,4 +64,3 @@ export class GoogleDriveSyncInternalStorage {
     localStorage.removeItem(this.#keydata(key));
   }
 }
-
