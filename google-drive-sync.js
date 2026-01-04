@@ -160,10 +160,10 @@ export class GoogleDriveSync {
 
     this.#dirty.add(key);
     this.#removed.delete(key);
+    this.#_internal_storage.save(key, value);
 
     const entries = this.#getDirtyRemovedEntries();
     await this.#writeRemote(entries);
-    this.#_internal_storage.save(key, value);
   }
 
   async removeRemote(key) {
