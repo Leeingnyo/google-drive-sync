@@ -3,7 +3,7 @@ import { GoogleDriveSyncOauthClient } from './google-drive-sync-oauth-client.js'
 import { GoogleDriveSyncRemoteStorage } from './google-drive-sync-remote-storage.js';
 
 // polyfill for BigInt
-if (BigInt) {
+if (typeof BigInt !== 'undefined') {
   BigInt.prototype.toJSON = function() { return this.toString(); }
 }
 
