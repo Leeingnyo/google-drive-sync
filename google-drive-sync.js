@@ -307,7 +307,18 @@ class LocalStorageSet {
 
   constructor(key) {
     this.#key = key;
-    this.#set = new Set(JSON.parse(localStorage.getItem(key)) ?? []);
+    const raw = localStorage.getItem(key);
+    if (raw === null) {
+      this.#set = new Set();
+      return;
+    }
+    const parsed = safeJsonParse(raw);
+    if (!Array.isArray(parsed)) {
+      localStorage.removeItem(key);
+      this.#set = new Set();
+      return;
+    }
+    this.#set = new Set(parsed);
   }
 
   #save() {
@@ -349,6 +360,14 @@ function isEqual(a, b) {
     }
   }
   return false;
+}
+
+function safeJsonParse(value) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return undefined;
+  }
 }
 
 function delay(ms) {
