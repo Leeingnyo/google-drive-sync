@@ -22,7 +22,18 @@ export class GoogleDriveSyncRemoteStorage {
   constructor(config) {
     this.#config = config;
 
-    this.#modifiedTime = JSON.parse(localStorage.getItem(MODIFIED_TIME_KEY)) ?? undefined;
+    const rawModifiedTime = localStorage.getItem(MODIFIED_TIME_KEY);
+    if (rawModifiedTime === null) {
+      this.#modifiedTime = undefined;
+    } else {
+      const storedModifiedTime = safeJsonParse(rawModifiedTime);
+      if (typeof storedModifiedTime === 'number') {
+        this.#modifiedTime = storedModifiedTime;
+      } else {
+        this.#modifiedTime = undefined;
+        localStorage.removeItem(MODIFIED_TIME_KEY);
+      }
+    }
   }
 
   async #getIndexFileInfo(cache = true) {
@@ -246,6 +257,14 @@ async function getIndexFileInfo() {
       mimeType: 'application/json',
       contents: JSON.stringify({}),
     }));
+  }
+}
+
+function safeJsonParse(value) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return undefined;
   }
 }
 
