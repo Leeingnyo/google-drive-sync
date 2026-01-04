@@ -20,6 +20,8 @@ interface GoogleDriveSyncConfig {
 
 const DIRTY_KEY = 'GDS.drity';
 const REMOVED_KEY = 'GDS.removed';
+const REMOTE_WRITE_MAX_ATTEMPTS = 3;
+const REMOTE_WRITE_RETRY_DELAY_MS = 500;
 
 /**
  * basic methods
@@ -156,10 +158,30 @@ export class GoogleDriveSync {
     try {
       await this.#mutex.acquire();
 
-      await this.#_remote_storage.save(entries);
+      let currentEntries = entries ?? this.#getDirtyRemovedEntries();
+      let attempt = 0;
+      while (true) {
+        if (currentEntries.length === 0) {
+          return;
+        }
+        try {
+          await this.#_remote_storage.save(currentEntries);
 
-      this.#dirty.clear();
-      this.#removed.clear();
+          this.#dirty.clear();
+          this.#removed.clear();
+          return;
+        } catch (error) {
+          if (error?.message === 'Conflict! load remote first') {
+            throw error;
+          }
+          attempt += 1;
+          if (attempt >= REMOTE_WRITE_MAX_ATTEMPTS) {
+            throw error;
+          }
+          await delay(REMOTE_WRITE_RETRY_DELAY_MS * attempt);
+          currentEntries = this.#getDirtyRemovedEntries();
+        }
+      }
     } finally {
       this.#mutex.release();
     }
@@ -327,4 +349,8 @@ function isEqual(a, b) {
     }
   }
   return false;
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
