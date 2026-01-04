@@ -1,16 +1,16 @@
 // authorization code flow
 let removeOnMessageRequestCodeVerifier;
 let removeOnMessageReceiveToken;
-export function authorizeGoogle({
+export async function authorizeGoogle({
   clientId,
   redirectUrl,
   prompt = 'none',
-  state = Math.random(),
+  state = createRandomString(16),
 
   onSuccess,
 }) {
-  const codeVerifier = `${Math.random()}${Math.random()}${Math.random()}${Math.random()}${Math.random()}`;
-  const codeChallenge = codeVerifier;
+  const codeVerifier = createRandomString(64);
+  const codeChallenge = await createCodeChallenge(codeVerifier);
   const path = 'https://accounts.google.com/o/oauth2/v2/auth';
   const queryParams = {
     client_id: clientId,
@@ -22,7 +22,7 @@ export function authorizeGoogle({
     access_type: 'offline',
 
     code_challenge: codeChallenge,
-    code_challenge_method: 'plain',
+    code_challenge_method: 'S256',
 
     prompt,
     state: state,
@@ -97,3 +97,25 @@ export function refreshToken({
   }).then(r => r.json())
 }
 
+function createRandomString(length) {
+  if (!window.crypto?.getRandomValues) {
+    return `${Math.random()}`.repeat(Math.ceil(length / 10)).slice(0, length);
+  }
+  const bytes = new Uint8Array(length);
+  window.crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes).slice(0, length);
+}
+
+async function createCodeChallenge(codeVerifier) {
+  const data = new TextEncoder().encode(codeVerifier);
+  if (!window.crypto?.subtle?.digest) {
+    return codeVerifier;
+  }
+  const digest = await window.crypto.subtle.digest('SHA-256', data);
+  return base64UrlEncode(new Uint8Array(digest));
+}
+
+function base64UrlEncode(bytes) {
+  const binary = String.fromCharCode(...bytes);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}

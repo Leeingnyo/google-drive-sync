@@ -244,7 +244,8 @@ async function getIndexFileInfo() {
 
 // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest
 async function digestMessage(message, algorithm = 'SHA-1') {
-  const msgUint8 = new TextEncoder().encode(message); // encode as (utf-8) Uint8Array
+  const normalized = message === undefined || message === null ? '' : String(message);
+  const msgUint8 = new TextEncoder().encode(normalized); // encode as (utf-8) Uint8Array
   const hashBuffer = await window.crypto.subtle.digest(algorithm, msgUint8); // hash the message
   const hashArray = Array.from(new Uint8Array(hashBuffer)); // convert buffer to byte array
   const hashHex = hashArray
@@ -252,4 +253,3 @@ async function digestMessage(message, algorithm = 'SHA-1') {
     .join(''); // convert bytes to hex string
   return hashHex;
 }
-
