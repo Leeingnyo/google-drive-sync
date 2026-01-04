@@ -110,6 +110,7 @@ export class GoogleDriveSync {
       // selfMerge -> return remote load
 
       // ignoreConflict
+      await this.#mutex.waitForUnlock();
       remoteData.forEach((data, index) => {
         const key = params[index];
         this.#_internal_storage.save(key, data);
