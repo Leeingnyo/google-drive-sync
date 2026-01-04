@@ -158,11 +158,17 @@ export class GoogleDriveSync {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
-    this.#dirty.add(key);
-    this.#removed.delete(key);
-    this.#_internal_storage.save(key, value);
+    const previousValue = this.load(key);
+    if (!isEqual(previousValue, value)) {
+      this.#dirty.add(key);
+      this.#removed.delete(key);
+      this.#_internal_storage.save(key, value);
+    }
 
     const entries = this.#getDirtyRemovedEntries();
+    if (entries.length === 0) {
+      return;
+    }
     await this.#writeRemote(entries);
   }
 
@@ -170,10 +176,21 @@ export class GoogleDriveSync {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
+    const hasLocal = this.load(key) !== undefined;
+    const isDirty = this.#dirty.has(key);
+    const isRemoved = this.#removed.has(key);
+    if (!hasLocal && !isDirty && !isRemoved) {
+      return;
+    }
+
     this.#dirty.delete(key);
     this.#removed.add(key);
+    this.#_internal_storage.remove(key);
 
     const entries = this.#getDirtyRemovedEntries();
+    if (entries.length === 0) {
+      return;
+    }
     await this.#writeRemote(entries);
   }
 
@@ -252,6 +269,10 @@ class LocalStorageSet {
   add(value) {
     this.#set.add(value);
     this.#save();
+  }
+
+  has(value) {
+    return this.#set.has(value);
   }
 
   delete(value) {
