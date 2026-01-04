@@ -50,7 +50,8 @@ export class GoogleDriveSyncRemoteStorage {
     }
     const { id } = await this.#getIndexFileInfo();
     console.debug('[API] read file:', 'index');
-    const { result: indexFileContent } = await retryRequest(() => readFile({ fileId: id }));
+    const { result: rawIndexFileContent } = await retryRequest(() => readFile({ fileId: id }));
+    const indexFileContent = normalizeIndexContent(rawIndexFileContent);
     return this.#indexFileContent = indexFileContent;
   }
 
@@ -258,6 +259,19 @@ async function getIndexFileInfo() {
       contents: JSON.stringify({}),
     }));
   }
+}
+
+function normalizeIndexContent(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = safeJsonParse(value);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  }
+  return {};
 }
 
 function safeJsonParse(value) {
