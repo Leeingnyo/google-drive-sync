@@ -103,15 +103,16 @@ export class GoogleDriveSync {
       internalData: this.#_internal_storage.load(key)
     }));
     // remote load
-    const remoteData = await this.#_remote_storage.load(entries);
+    const remoteDataPromises = await this.#_remote_storage.load(entries);
+    const remoteData = await Promise.all(remoteDataPromises);
     // compare
     // if diff
       // selfMerge -> return remote load
 
       // ignoreConflict
-      remoteData.forEach(async (remoteDataPromise, index) => {
+      remoteData.forEach((data, index) => {
         const key = params[index];
-        this.#_internal_storage.save(key, await remoteDataPromise);
+        this.#_internal_storage.save(key, data);
       });
       // internal load
       if (isPlural) {
