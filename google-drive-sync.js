@@ -2,6 +2,16 @@ import { GoogleDriveSyncInternalStorage } from './google-drive-sync-internal-sto
 import { GoogleDriveSyncOauthClient } from './google-drive-sync-oauth-client.js';
 import { GoogleDriveSyncRemoteStorage } from './google-drive-sync-remote-storage.js';
 
+export {
+  mergeLastWriteWins,
+  mergeDeep,
+  mergeByConfirm,
+  getUpdatedAt,
+  isPlainObject,
+  deepMerge,
+  safeStringify,
+} from './google-drive-sync-merge.js';
+
 // polyfill for BigInt
 if (typeof BigInt !== 'undefined') {
   BigInt.prototype.toJSON = function() { return this.toString(); }
@@ -90,15 +100,16 @@ export class GoogleDriveSync {
 
   /**
    * string -> any
-   * string[] -> Array<Promise<any>>
+   * string[] -> any[]
    */
-  async loadRemote(key) {
+  async loadRemote(key, options = {}) {
     if (!this.#_oauth_client.isGoogleReady) { throw Error('GoogleDriveSyncNotInitialized'); }
     if (!this.#_oauth_client.isUserDriveReady) { throw Error('GoogleDriveSyncNotReady'); }
 
     const isPlural = Array.isArray(key);
 
     const params = isPlural ? key : [key];
+    const merge = typeof options === 'function' ? options : options?.merge;
 
     const entries = params.map(key => ({
       key,
@@ -112,20 +123,34 @@ export class GoogleDriveSync {
 
     // ignoreConflict
     await this.#mutex.waitForUnlock();
-    const finalData = remoteData.map((data, index) => {
+    const finalData = [];
+    for (let index = 0; index < remoteData.length; index += 1) {
       const key = params[index];
-      if (this.#dirty.has(key)) {
-        // save > load
-        return this.#_internal_storage.load(key);
+      const remoteValue = remoteData[index];
+      const localValue = this.#_internal_storage.load(key);
+      const hasDirty = this.#dirty.has(key);
+      const hasRemoved = this.#removed.has(key);
+
+      if (hasDirty || hasRemoved) {
+        if (typeof merge === 'function') {
+          const mergedValue = await merge(localValue, remoteValue, key);
+          finalData.push(this.#applyMergedValue(key, mergedValue, remoteValue));
+          continue;
+        }
+        if (hasRemoved) {
+          // remove > load
+          this.#_internal_storage.remove(key);
+          finalData.push(undefined);
+          continue;
+        }
+        // keep local
+        finalData.push(localValue);
+        continue;
       }
-      if (this.#removed.has(key)) {
-        // remove > load
-        this.#_internal_storage.remove(key);
-        return undefined;
-      }
-      this.#_internal_storage.save(key, data);
-      return data;
-    });
+
+      this.#_internal_storage.save(key, remoteValue);
+      finalData.push(remoteValue);
+    }
     // internal load
     if (isPlural) {
       return finalData;
@@ -140,6 +165,32 @@ export class GoogleDriveSync {
     const remoteData = await this.#loadRemoteEntries([{ key }], true);
     this.#_internal_storage.save(key, remoteData[0]);
     return this.#_internal_storage.load(key);
+  }
+
+  #applyMergedValue(key, mergedValue, remoteValue) {
+    if (mergedValue === undefined) {
+      this.#_internal_storage.remove(key);
+      if (remoteValue === undefined) {
+        this.#dirty.delete(key);
+        this.#removed.delete(key);
+      } else {
+        this.#dirty.delete(key);
+        this.#removed.add(key);
+      }
+      return undefined;
+    }
+
+    this.#_internal_storage.save(key, mergedValue);
+
+    if (isEqual(mergedValue, remoteValue)) {
+      this.#dirty.delete(key);
+      this.#removed.delete(key);
+    } else {
+      this.#dirty.add(key);
+      this.#removed.delete(key);
+    }
+
+    return mergedValue;
   }
 
   async #loadRemoteEntries(entries, force = false) {
