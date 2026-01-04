@@ -9,6 +9,8 @@ import { // gapi
 } from './google-api.js';
 
 const MODIFIED_TIME_KEY = 'GDS.modifiedTime';
+const REMOTE_READ_MAX_ATTEMPTS = 3;
+const REMOTE_READ_RETRY_DELAY_MS = 300;
 
 export class GoogleDriveSyncRemoteStorage {
   #config;
@@ -37,7 +39,7 @@ export class GoogleDriveSyncRemoteStorage {
     }
     const { id } = await this.#getIndexFileInfo();
     console.debug('[API] read file:', 'index');
-    const { result: indexFileContent } = await readFile({ fileId: id });
+    const { result: indexFileContent } = await retryRequest(() => readFile({ fileId: id }));
     return this.#indexFileContent = indexFileContent;
   }
 
@@ -175,7 +177,7 @@ export class GoogleDriveSyncRemoteStorage {
     }
 
     console.debug('[API] get file:', key);
-    const { result: { files: files } } = await getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` });
+    const { result: { files: files } } = await retryRequest(() => getFiles({ q: `name = '${this.#getRemoteFileName(key)}'` }));
     const targetFile = files.find(({ name }) => name === this.#getRemoteFileName(key));
     return targetFile?.id;
   }
@@ -185,7 +187,7 @@ export class GoogleDriveSyncRemoteStorage {
     
     if (fileId) {
       console.debug('[API] read file:', key);
-      const { result: fileContent } = await readFile({ fileId });
+      const { result: fileContent } = await retryRequest(() => readFile({ fileId }));
       return fileContent;
     } else {
       return;
@@ -221,7 +223,7 @@ export class GoogleDriveSyncRemoteStorage {
 
 async function getIndexFileInfo() {
   console.debug('[API] get index file info');
-  const { result: { files } } = await getFiles({ q: 'name = \'index\'', fields: `files(${['id', 'name', 'mimeType', 'modifiedTime', 'headRevisionId', 'parents'].join(', ')})` });
+  const { result: { files } } = await retryRequest(() => getFiles({ q: 'name = \'index\'', fields: `files(${['id', 'name', 'mimeType', 'modifiedTime', 'headRevisionId', 'parents'].join(', ')})` }));
   const indexFile = files.find(({ name }) => name === 'index');
 
   if (indexFile === undefined) {
@@ -238,12 +240,12 @@ async function getIndexFileInfo() {
     const folderId = prompt('Insert folderId to store \'index\' file.\nex) https://drive.google.com/drive/u/0/folders/{folderId}');
     console.debug('folderId:', folderId);
 
-    await createFile({
+    await retryRequest(() => createFile({
       name: 'index',
       folderId: folderId,
       mimeType: 'application/json',
       contents: JSON.stringify({}),
-    });
+    }));
   }
 }
 
@@ -257,4 +259,38 @@ async function digestMessage(message, algorithm = 'SHA-1') {
     .map((b) => b.toString(16).padStart(2, '0'))
     .join(''); // convert bytes to hex string
   return hashHex;
+}
+
+async function retryRequest(fn, maxAttempts = REMOTE_READ_MAX_ATTEMPTS, delayMs = REMOTE_READ_RETRY_DELAY_MS) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt += 1;
+      if (attempt >= maxAttempts || !isRetriableError(error)) {
+        throw error;
+      }
+      await delay(delayMs * attempt);
+    }
+  }
+}
+
+function isRetriableError(error) {
+  const rawStatus = error?.status ?? error?.code ?? error?.result?.error?.code;
+  const status = Number(rawStatus);
+  if (Number.isFinite(status)) {
+    if (status === 429) {
+      return true;
+    }
+    if (status >= 500 && status < 600) {
+      return true;
+    }
+  }
+  const message = `${error?.message ?? ''}`.toLowerCase();
+  return message.includes('network') || message.includes('failed to fetch') || message.includes('timeout');
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
