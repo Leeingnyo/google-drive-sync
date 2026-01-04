@@ -86,6 +86,11 @@ export class GoogleDriveSyncRemoteStorage {
     localStorage.setItem(MODIFIED_TIME_KEY, JSON.stringify(modifiedTime));
 
     return entries.map(async ({ key, internalData }) => {
+      if (internalData === undefined) {
+        // local cache miss: skip hash compare and fetch remote
+        return this.#readData(key);
+      }
+
       // index 해시 같은 값이면 fetch 안 함
       const stringValue = JSON.stringify(internalData);
       const hash = await digestMessage(stringValue);
