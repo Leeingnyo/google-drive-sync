@@ -49,7 +49,7 @@ Methods
   * login
   * logout
 * remote storage methods
-  * loadRemote(key)
+  * loadRemote(key, options?) // options.merge or merge function
   * loadRemoteForce(key)
   * saveRemote(key, value)
   * removeRemote(key)
@@ -91,9 +91,35 @@ window.addEventListener('SyncReady', async () => {
 });
 ```
 
+### Conflict Resolution (Merge)
+
+`loadRemote` can accept a merge callback when local data is dirty/removed and remote differs.
+
+```js
+const remoteFoo = await googleDriveSync.loadRemote('foo', {
+  merge: (localValue, remoteValue, key) => localValue,
+});
+```
+
+You can also pass the merge function directly as the second argument:
+
+```js
+const remoteFoo = await googleDriveSync.loadRemote('foo', (localValue, remoteValue) => remoteValue);
+```
+
+Built-in helpers are exported from `google-drive-sync-merge.js`:
+
+* mergeLastWriteWins: prefers newer `updatedAt`/`modifiedAt` if present, otherwise local
+* mergeDeep: deep merge for plain objects (arrays keep local)
+* mergeByConfirm: prompts user to choose local vs remote
+
+```js
+import { mergeDeep } from './google-drive-sync-merge.js';
+
+const remoteFoo = await googleDriveSync.loadRemote('foo', { merge: mergeDeep });
+```
+
 ## TODO
 
-* Implement methods to resolve conflict
 * Fix some bugs when data files have deleted in google drive by user
   * Please remove the index file to fix this bug
-
