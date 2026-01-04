@@ -105,8 +105,7 @@ export class GoogleDriveSync {
       internalData: this.#_internal_storage.load(key)
     }));
     // remote load
-    const remoteDataPromises = await this.#_remote_storage.load(entries);
-    const remoteData = await Promise.all(remoteDataPromises);
+    const remoteData = await this.#loadRemoteEntries(entries);
     // compare
     // if diff
       // selfMerge -> return remote load
@@ -138,9 +137,25 @@ export class GoogleDriveSync {
   }
 
   async loadRemoteForce(key) {
-    const remoteData = await (await this.#_remote_storage.load([{ key }], true))[0];
-    this.#_internal_storage.save(key, remoteData);
+    const remoteData = await this.#loadRemoteEntries([{ key }], true);
+    this.#_internal_storage.save(key, remoteData[0]);
     return this.#_internal_storage.load(key);
+  }
+
+  async #loadRemoteEntries(entries, force = false) {
+    try {
+      const remoteDataPromises = await this.#_remote_storage.load(entries, force);
+      return await Promise.all(remoteDataPromises);
+    } catch (error) {
+      if (isAuthError(error)) {
+        const refreshed = await this.#_oauth_client.refreshAccessToken();
+        if (refreshed) {
+          const remoteDataPromises = await this.#_remote_storage.load(entries, force);
+          return await Promise.all(remoteDataPromises);
+        }
+      }
+      throw error;
+    }
   }
 
   #getDirtyRemovedEntries() {
@@ -171,6 +186,18 @@ export class GoogleDriveSync {
           this.#removed.clear();
           return;
         } catch (error) {
+          if (isAuthError(error)) {
+            const refreshed = await this.#_oauth_client.refreshAccessToken();
+            if (refreshed) {
+              attempt += 1;
+              if (attempt >= REMOTE_WRITE_MAX_ATTEMPTS) {
+                throw error;
+              }
+              currentEntries = this.#getDirtyRemovedEntries();
+              continue;
+            }
+            throw error;
+          }
           if (error?.message === 'Conflict! load remote first') {
             throw error;
           }
@@ -368,6 +395,16 @@ function safeJsonParse(value) {
   } catch (error) {
     return undefined;
   }
+}
+
+function isAuthError(error) {
+  const rawStatus = error?.status ?? error?.code ?? error?.result?.error?.code;
+  const status = Number(rawStatus);
+  if (status === 401) {
+    return true;
+  }
+  const message = `${error?.message ?? ''}`.toLowerCase();
+  return message.includes('invalid credentials') || message.includes('unauthorized');
 }
 
 function delay(ms) {
