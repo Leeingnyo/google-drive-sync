@@ -47,7 +47,7 @@ export async function createFile2({ name, folderId, mimeType, contents }) {
 }
 
 export function getFile({ fileId, fields }) {
-  return gapi.client.drive.files.get({ fileId, fiedls });
+  return gapi.client.drive.files.get({ fileId, fields });
 }
 
 export function readFile({ fileId }) {
@@ -59,7 +59,7 @@ export function getFileRevisions({ fileId, pageSize, pageToken }) {
 }
 
 export function getFileRevision({ fileId, revisionId, acknowledgeAbuse }) {
-  return gapi.client.drive.revisions.get({ fileId, revisions, acknowledgeAbuse });
+  return gapi.client.drive.revisions.get({ fileId, revisionId, acknowledgeAbuse });
 }
 
 export function updateFile({ fileId, mimeType = '*/*', contents }) {
@@ -85,4 +85,3 @@ export function deleteFile({ fileId }) {
   }
   return gapi.client.drive.files.delete({ fileId });
 }
-
